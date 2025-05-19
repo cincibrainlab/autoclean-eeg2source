@@ -160,7 +160,17 @@ cython_debug/
 #.idea/
 
 
-#example_data/
-#working_assets/
-#IMPLEMENTATION_PLAN.md
-#AUDIT_REPORT.md
+example_data/
+working_assets/
+IMPLEMENTATION_PLAN.md
+AUDIT_REPORT.md
+STAGE1_COMPLETION.md
+STAGE2_COMPLETION.md
+STAGE3_COMPLETION.md
+STAGE4_COMPLETION.md
+STAGE5_COMPLETION.md
+
+*.set
+*.csv
+*.fdt
+*.md

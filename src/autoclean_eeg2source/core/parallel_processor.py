@@ -1,0 +1,508 @@
+"""Parallel processing pipeline for EEG to source conversion."""
+
+import os
+import gc
+import time
+import logging
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from typing import Optional, Dict, Any, List, Tuple, Callable
+import numpy as np
+import mne
+from mne.datasets import fetch_fsaverage
+import pandas as pd
+
+from .converter import SequentialProcessor
+from .memory_manager import MemoryManager
+from ..io.exceptions import ProcessingError
+
+logger = logging.getLogger(__name__)
+
+
+class ParallelProcessor(SequentialProcessor):
+    """Parallel processor for EEG to source localization conversion."""
+    
+    def __init__(self, 
+                 memory_manager: Optional[MemoryManager] = None,
+                 montage: str = "GSN-HydroCel-129",
+                 resample_freq: float = 250,
+                 lambda2: float = 1.0 / 9.0,
+                 n_jobs: int = -1,
+                 batch_size: int = 4,
+                 parallel_method: str = 'processes'):
+        """
+        Initialize parallel processor.
+        
+        Parameters
+        ----------
+        memory_manager : MemoryManager, optional
+            Memory manager instance
+        montage : str
+            EEG montage name
+        resample_freq : float
+            Target sampling frequency
+        lambda2 : float
+            Regularization parameter for inverse solution
+        n_jobs : int
+            Number of parallel jobs (-1 for all cores)
+        batch_size : int
+            Number of epochs to process in parallel
+        parallel_method : str
+            Method for parallelization ('processes' or 'threads')
+        """
+        super().__init__(
+            memory_manager=memory_manager,
+            montage=montage,
+            resample_freq=resample_freq,
+            lambda2=lambda2
+        )
+        
+        # Set number of parallel jobs
+        self.n_jobs = n_jobs if n_jobs > 0 else mp.cpu_count()
+        self.batch_size = batch_size
+        self.parallel_method = parallel_method
+        
+        # Performance metrics
+        self.metrics = {
+            'setup_time': 0,
+            'read_time': 0,
+            'forward_time': 0,
+            'inverse_time': 0,
+            'extract_time': 0,
+            'total_time': 0
+        }
+        
+        logger.info(f"Initialized parallel processor with {self.n_jobs} workers "
+                   f"using {parallel_method} method")
+    
+    def _get_forward_solution(self, info: mne.Info) -> mne.Forward:
+        """Get cached or compute forward solution with parallel processing."""
+        if self.forward_solution is not None:
+            # Check if montage matches
+            if len(self.forward_solution['info']['ch_names']) == len(info['ch_names']):
+                logger.debug("Using cached forward solution")
+                return self.forward_solution
+        
+        logger.info("Computing forward solution...")
+        self.memory_manager.check_available()
+        
+        # Compute forward solution with parallel processing
+        self.forward_solution = mne.make_forward_solution(
+            info, 
+            trans="fsaverage", 
+            src=self.fsaverage_src, 
+            bem=self.fsaverage_bem,
+            eeg=True, 
+            mindist=5.0, 
+            n_jobs=self.n_jobs  # Use parallel processing
+        )
+        
+        self.memory_manager.log_memory_status("After forward solution")
+        return self.forward_solution
+    
+    def process_file(self, input_file: str, output_dir: str) -> Dict[str, Any]:
+        """
+        Process single EEG file with parallel processing.
+        
+        Parameters
+        ----------
+        input_file : str
+            Path to input .set file
+        output_dir : str
+            Output directory
+            
+        Returns
+        -------
+        result : dict
+            Processing result with status and output file
+        """
+        start_time = time.time()
+        
+        result = {
+            'input_file': input_file,
+            'status': 'failed',
+            'output_file': None,
+            'error': None,
+            'metrics': None
+        }
+        
+        try:
+            # Reset metrics
+            self.metrics = {key: 0 for key in self.metrics}
+            
+            # Validate input file
+            logger.info(f"Processing: {os.path.basename(input_file)}")
+            self.validator.validate_file_pair(input_file)
+            
+            # Check memory before starting
+            self.memory_manager.check_available()
+            
+            # Setup fsaverage if needed
+            setup_start = time.time()
+            self._setup_fsaverage()
+            self.metrics['setup_time'] = time.time() - setup_start
+            
+            # Load epochs
+            read_start = time.time()
+            epochs = self.reader.read_epochs(input_file)
+            self.metrics['read_time'] = time.time() - read_start
+            
+            # Set montage
+            logger.info(f"Setting montage: {self.montage}")
+            epochs.set_montage(
+                mne.channels.make_standard_montage(self.montage), 
+                match_case=False
+            )
+            epochs.pick("eeg")
+            
+            # Resample if needed
+            if epochs.info['sfreq'] != self.resample_freq:
+                logger.info(f"Resampling from {epochs.info['sfreq']}Hz to {self.resample_freq}Hz")
+                epochs.resample(self.resample_freq)
+            
+            # Set EEG reference
+            epochs.set_eeg_reference(projection=True)
+            
+            # Get forward solution
+            forward_start = time.time()
+            fwd = self._get_forward_solution(epochs.info)
+            self.metrics['forward_time'] = time.time() - forward_start
+            
+            # Compute noise covariance
+            logger.info("Computing noise covariance...")
+            noise_cov = mne.make_ad_hoc_cov(epochs.info)
+            
+            # Create inverse operator
+            logger.info("Creating inverse operator...")
+            inv = mne.minimum_norm.make_inverse_operator(
+                epochs.info, fwd, noise_cov, verbose=False
+            )
+            
+            # Apply inverse solution to epochs in parallel
+            inverse_start = time.time()
+            stcs = self._apply_inverse_parallel(epochs, inv)
+            self.metrics['inverse_time'] = time.time() - inverse_start
+            
+            # Convert to EEG format with DK regions using parallel processing
+            extract_start = time.time()
+            output_epochs, output_file = self._convert_stc_to_eeg_parallel(
+                stcs, output_dir, 
+                subject_id=os.path.splitext(os.path.basename(input_file))[0]
+            )
+            self.metrics['extract_time'] = time.time() - extract_start
+            
+            # Update result
+            result['status'] = 'success'
+            result['output_file'] = output_file
+            
+            # Cleanup
+            del epochs, inv, stcs, output_epochs
+            gc.collect()
+            self.memory_manager.cleanup()
+            
+            # Set total processing time
+            self.metrics['total_time'] = time.time() - start_time
+            result['metrics'] = self.metrics.copy()
+            
+            logger.info(f"✓ Successfully processed: {output_file} in {self.metrics['total_time']:.2f}s")
+            
+        except MemoryError as e:
+            logger.error(f"Memory exhausted: {e}")
+            result['error'] = str(e)
+            # Try to cleanup
+            gc.collect()
+            self.memory_manager.cleanup()
+            
+        except Exception as e:
+            logger.error(f"Processing failed: {e}")
+            result['error'] = str(e)
+            
+        return result
+    
+    def _apply_inverse_parallel(self, epochs: mne.Epochs, inv: mne.minimum_norm.InverseOperator) -> List:
+        """Apply inverse solution to epochs using parallel processing."""
+        n_epochs = len(epochs)
+        logger.info(f"Applying inverse solution to {n_epochs} epochs in parallel...")
+        
+        # Split epochs into batches to optimize memory usage
+        batch_size = min(self.batch_size, n_epochs)
+        n_batches = int(np.ceil(n_epochs / batch_size))
+        
+        all_stcs = []
+        
+        # Process each batch
+        for batch_idx in range(n_batches):
+            start_idx = batch_idx * batch_size
+            end_idx = min((batch_idx + 1) * batch_size, n_epochs)
+            logger.debug(f"Processing batch {batch_idx+1}/{n_batches} (epochs {start_idx}-{end_idx})")
+            
+            # Get batch of epochs
+            batch_epochs = epochs[start_idx:end_idx]
+            
+            # Use apply_inverse_epochs with parallel processing
+            batch_stcs = mne.minimum_norm.apply_inverse_epochs(
+                batch_epochs, inv, lambda2=self.lambda2, method="MNE", 
+                pick_ori='normal', verbose=False, n_jobs=self.n_jobs
+            )
+            
+            all_stcs.extend(batch_stcs)
+            
+            # Check memory
+            self.memory_manager.check_available()
+        
+        return all_stcs
+    
+    def _convert_stc_to_eeg_parallel(self, stc_list: list, output_dir: str, subject_id: str) -> tuple:
+        """Convert source estimates to EEG format with DK atlas regions using parallel processing."""
+        logger.info(f"Converting {len(stc_list)} source estimates to EEG format in parallel...")
+        
+        # Define function to process a single STC
+        def process_stc(stc):
+            # Extract label time courses
+            return mne.extract_label_time_course(
+                stc, self.labels, src=self.fsaverage_src, 
+                mode='mean', verbose=False
+            )
+        
+        # Use parallel processing to extract time courses
+        executor_class = ProcessPoolExecutor if self.parallel_method == 'processes' else ThreadPoolExecutor
+        
+        # Use a new executor for this task
+        with executor_class(max_workers=self.n_jobs) as executor:
+            all_label_ts = list(executor.map(process_stc, stc_list))
+        
+        # Stack to get 3D array (n_epochs, n_regions, n_times)
+        label_data = np.array(all_label_ts)
+        
+        # Get properties
+        n_epochs = len(stc_list)
+        n_regions = len(self.labels)
+        n_times = stc_list[0].data.shape[1]
+        sfreq = 1.0 / stc_list[0].tstep
+        ch_names = [label.name for label in self.labels]
+        
+        # Create channel positions
+        ch_pos = {}
+        for i, label in enumerate(self.labels):
+            # Create positions on a sphere (simplified)
+            theta = 2 * np.pi * i / n_regions
+            phi = np.pi * (i % 4) / 4
+            ch_pos[label.name] = np.array([
+                np.sin(phi) * np.cos(theta),
+                np.sin(phi) * np.sin(theta),
+                np.cos(phi)
+            ]) * 0.1
+        
+        # Create MNE Info
+        info = mne.create_info(
+            ch_names=ch_names, 
+            sfreq=sfreq, 
+            ch_types=['eeg'] * n_regions
+        )
+        
+        # Update channel positions
+        for idx, ch_name in enumerate(ch_names):
+            info['chs'][idx]['loc'][:3] = ch_pos[ch_name]
+        
+        # Create epochs
+        events = np.array([[i, 0, 1] for i in range(n_epochs)])
+        event_id = {'event': 1}
+        tmin = stc_list[0].tmin
+        
+        epochs = mne.EpochsArray(
+            label_data, info, events=events, 
+            event_id=event_id, tmin=tmin
+        )
+        
+        # Save to EEGLAB format
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, f"{subject_id}_dk_regions.set")
+        epochs.export(output_file, fmt='eeglab')
+        
+        logger.info(f"Saved {n_regions} regions to {output_file}")
+        
+        # Save metadata
+        self._save_metadata(output_dir, subject_id, ch_names, ch_pos)
+        
+        return epochs, output_file
+    
+    def process_batch(self, file_list: List[str], output_dir: str, 
+                     max_workers: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Process multiple files in parallel.
+        
+        Parameters
+        ----------
+        file_list : List[str]
+            List of input .set files
+        output_dir : str
+            Output directory
+        max_workers : int, optional
+            Maximum number of parallel workers
+            
+        Returns
+        -------
+        results : List[Dict[str, Any]]
+            Processing results for each file
+        """
+        logger.info(f"Processing {len(file_list)} files in batch mode")
+        
+        # Use provided max_workers or default to n_jobs
+        max_workers = max_workers or self.n_jobs
+        
+        # Define processing function for a single file
+        def process_single_file(file_path):
+            try:
+                # Create a new processor for this process to avoid shared state issues
+                processor = ParallelProcessor(
+                    memory_manager=MemoryManager(max_memory_gb=self.memory_manager.max_memory/1e9),
+                    montage=self.montage,
+                    resample_freq=self.resample_freq,
+                    lambda2=self.lambda2,
+                    n_jobs=1,  # Use single thread within each file process
+                    batch_size=self.batch_size,
+                    parallel_method=self.parallel_method
+                )
+                return processor.process_file(file_path, output_dir)
+            except Exception as e:
+                logger.error(f"Error processing {os.path.basename(file_path)}: {e}")
+                return {
+                    'input_file': file_path,
+                    'status': 'failed',
+                    'error': str(e)
+                }
+        
+        # Process files in parallel
+        results = []
+        
+        # Use process-based parallelism for file-level parallelism
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(process_single_file, file_list))
+        
+        return results
+    
+    def get_performance_report(self) -> Dict[str, Any]:
+        """Get performance metrics report."""
+        return {
+            'metrics': self.metrics,
+            'n_jobs': self.n_jobs,
+            'parallel_method': self.parallel_method,
+            'batch_size': self.batch_size
+        }
+
+
+class CachedProcessor(ParallelProcessor):
+    """Processor with caching for intermediate results."""
+    
+    def __init__(self, 
+                 memory_manager: Optional[MemoryManager] = None,
+                 montage: str = "GSN-HydroCel-129",
+                 resample_freq: float = 250,
+                 lambda2: float = 1.0 / 9.0,
+                 n_jobs: int = -1,
+                 batch_size: int = 4,
+                 parallel_method: str = 'processes',
+                 cache_dir: Optional[str] = None):
+        """
+        Initialize cached processor.
+        
+        Parameters
+        ----------
+        memory_manager : MemoryManager, optional
+            Memory manager instance
+        montage : str
+            EEG montage name
+        resample_freq : float
+            Target sampling frequency
+        lambda2 : float
+            Regularization parameter for inverse solution
+        n_jobs : int
+            Number of parallel jobs (-1 for all cores)
+        batch_size : int
+            Number of epochs to process in parallel
+        parallel_method : str
+            Method for parallelization ('processes' or 'threads')
+        cache_dir : str, optional
+            Directory for caching intermediate results
+        """
+        super().__init__(
+            memory_manager=memory_manager,
+            montage=montage,
+            resample_freq=resample_freq,
+            lambda2=lambda2,
+            n_jobs=n_jobs,
+            batch_size=batch_size,
+            parallel_method=parallel_method
+        )
+        
+        # Setup caching
+        self.cache_dir = cache_dir
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
+            logger.info(f"Caching enabled with cache directory: {cache_dir}")
+        else:
+            logger.info("Caching disabled")
+        
+        # Cache hit/miss metrics
+        self.cache_metrics = {
+            'forward_hits': 0,
+            'forward_misses': 0,
+            'inverse_hits': 0,
+            'inverse_misses': 0
+        }
+    
+    def _get_cache_path(self, prefix: str, identifier: str, suffix: str = 'fif') -> str:
+        """Get path for cached file."""
+        if not self.cache_dir:
+            return None
+            
+        return os.path.join(self.cache_dir, f"{prefix}_{identifier}.{suffix}")
+    
+    def _get_forward_solution(self, info: mne.Info) -> mne.Forward:
+        """Get cached or compute forward solution with caching."""
+        if not self.cache_dir:
+            return super()._get_forward_solution(info)
+        
+        # Create cache identifier based on channel names and positions
+        ch_names = info['ch_names']
+        ch_names_str = "_".join(ch_names)
+        import hashlib
+        identifier = hashlib.md5(ch_names_str.encode()).hexdigest()
+        
+        # Check if cached forward solution exists
+        cache_path = self._get_cache_path('fwd', identifier)
+        
+        if os.path.exists(cache_path):
+            logger.info(f"Loading forward solution from cache: {cache_path}")
+            self.forward_solution = mne.read_forward_solution(cache_path)
+            self.cache_metrics['forward_hits'] += 1
+            return self.forward_solution
+        
+        # Compute new forward solution
+        self.cache_metrics['forward_misses'] += 1
+        fwd = super()._get_forward_solution(info)
+        
+        # Save to cache
+        mne.write_forward_solution(cache_path, fwd, overwrite=True)
+        logger.info(f"Saved forward solution to cache: {cache_path}")
+        
+        return fwd
+    
+    def get_cache_metrics(self) -> Dict[str, Any]:
+        """Get cache hit/miss metrics."""
+        metrics = self.cache_metrics.copy()
+        
+        # Calculate hit rates
+        if metrics['forward_hits'] + metrics['forward_misses'] > 0:
+            metrics['forward_hit_rate'] = (metrics['forward_hits'] / 
+                                         (metrics['forward_hits'] + metrics['forward_misses']))
+        else:
+            metrics['forward_hit_rate'] = 0
+            
+        if metrics['inverse_hits'] + metrics['inverse_misses'] > 0:
+            metrics['inverse_hit_rate'] = (metrics['inverse_hits'] / 
+                                         (metrics['inverse_hits'] + metrics['inverse_misses']))
+        else:
+            metrics['inverse_hit_rate'] = 0
+            
+        return metrics
