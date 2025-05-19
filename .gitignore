@@ -163,3 +163,4 @@ cython_debug/
 example_data/
 working_assets/
 IMPLEMENTATION_PLAN.md
+AUDIT_REPORT.md
