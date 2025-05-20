@@ -174,3 +174,5 @@ STAGE5_COMPLETION.md
 *.csv
 *.fdt
 *.md
+
+!TUTORIAL.md
