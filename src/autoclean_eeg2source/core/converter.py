@@ -242,14 +242,23 @@ class SequentialProcessor:
         # Create channel positions
         ch_pos = {}
         for i, label in enumerate(self.labels):
-            # Create positions on a sphere (simplified)
-            theta = 2 * np.pi * i / n_regions
-            phi = np.pi * (i % 4) / 4
-            ch_pos[label.name] = np.array([
-                np.sin(phi) * np.cos(theta),
-                np.sin(phi) * np.sin(theta),
-                np.cos(phi)
-            ]) * 0.1
+            # Extract centroid of the label
+            if hasattr(label, 'pos') and len(label.pos) > 0:
+                centroid = np.mean(label.pos, axis=0)
+            else:
+                # If no positions available, create a point on a unit sphere using golden ratio
+                phi = (1 + np.sqrt(5)) / 2
+                idx = i + 1
+                theta = 2 * np.pi * idx / phi**2
+                phi = np.arccos(1 - 2 * ((idx % phi**2) / phi**2))
+                centroid = np.array([
+                    np.sin(phi) * np.cos(theta),
+                    np.sin(phi) * np.sin(theta),
+                    np.cos(phi)
+                ]) * 0.1  # Scaled to approximate head radius
+            
+            # Store in dictionary
+            ch_pos[label.name] = centroid
         
         # Create MNE Info
         info = mne.create_info(
