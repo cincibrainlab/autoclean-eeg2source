@@ -110,7 +110,28 @@ These defaults are based on common practices in the literature but may not be op
 
 ## Installation
 
-### Install from PyPI
+### Install with UV (Recommended)
+
+UV is a blazing-fast Python package installer and resolver that significantly improves installation speed and reliability. It's the recommended way to install and run AutoClean EEG2Source:
+
+```bash
+# Install UV if you don't have it
+pip install uv
+
+# Install the package with UV
+uv pip install autoclean-eeg2source
+
+# Or install from source with UV
+uv pip install .
+
+# Development installation
+uv pip install -e .
+
+# With development dependencies
+uv pip install -e ".[dev]"
+```
+
+### Install with traditional pip
 
 ```bash
 pip install autoclean-eeg2source

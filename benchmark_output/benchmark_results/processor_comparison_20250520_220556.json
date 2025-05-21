@@ -1,0 +1,74 @@
+{
+  "test_name": "processor_comparison",
+  "description": "Comparing 1 processors on 1 files",
+  "timestamp": "2025-05-20T22:05:28.330578",
+  "system_info": {
+    "os": "Darwin",
+    "os_version": "Darwin Kernel Version 24.5.0: Thu Apr 10 20:21:52 PDT 2025; root:xnu-11417.120.96.501.2~2/RELEASE_ARM64_T6031",
+    "python_version": "3.13.0",
+    "cpu": {
+      "brand_raw": "arm",
+      "count": 16,
+      "physical_count": 16
+    },
+    "memory_total_gb": 64.0,
+    "memory_available_gb": 39.15721130371094,
+    "gpu": {
+      "cupy_available": false,
+      "pytorch_available": false,
+      "tensorflow_available": false,
+      "cuda_available": false,
+      "cuda_version": null,
+      "gpu_count": 0,
+      "gpu_info": []
+    },
+    "timestamp": "2025-05-20T22:05:28.339385"
+  },
+  "results": {
+    "sequential": {
+      "test_name": "sequential_test",
+      "test_description": "Benchmark for sequential",
+      "processor_type": "sequential",
+      "system_info": {
+        "os": "Darwin",
+        "os_version": "Darwin Kernel Version 24.5.0: Thu Apr 10 20:21:52 PDT 2025; root:xnu-11417.120.96.501.2~2/RELEASE_ARM64_T6031",
+        "python_version": "3.13.0",
+        "cpu": {
+          "brand_raw": "arm",
+          "count": 16,
+          "physical_count": 16
+        },
+        "memory_total_gb": 64.0,
+        "memory_available_gb": 39.15252685546875,
+        "gpu": {
+          "cupy_available": false,
+          "pytorch_available": false,
+          "tensorflow_available": false,
+          "cuda_available": false,
+          "cuda_version": null,
+          "gpu_count": 0,
+          "gpu_info": []
+        },
+        "timestamp": "2025-05-20T22:05:28.342323"
+      },
+      "test_params": {
+        "montage": "GSN-HydroCel-129",
+        "resample_freq": 250,
+        "lambda2": 0.1111111111111111
+      },
+      "results": [
+        {
+          "input_file": "example_data/0468_SLStructured_PostICA_epoched.set",
+          "status": "success",
+          "output_file": "/Users/ernie/Documents/GitHub/autoclean-eeg2source/benchmark_output/sequential/0468_SLStructured_PostICA_epoched_dk_regions.set",
+          "error": null,
+          "filename": "0468_SLStructured_PostICA_epoched.set"
+        }
+      ],
+      "start_time": 1747793128.342332,
+      "end_time": 1747793156.096289,
+      "total_duration": 27.75395703315735,
+      "summary_stats": {}
+    }
+  }
+}
