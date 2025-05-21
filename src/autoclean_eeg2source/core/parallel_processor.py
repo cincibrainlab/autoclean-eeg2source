@@ -11,12 +11,40 @@ import numpy as np
 import mne
 from mne.datasets import fetch_fsaverage
 import pandas as pd
+from functools import partial
 
 from .converter import SequentialProcessor
 from .memory_manager import MemoryManager
 from ..io.exceptions import ProcessingError
 
 logger = logging.getLogger(__name__)
+
+
+# Helper function at module level for multiprocessing
+def _process_batch_helper(file_path, output_dir):
+    """Helper function for batch processing to avoid pickling issues."""
+    try:
+        # Create a new processor for this process to avoid shared state issues
+        from .memory_manager import MemoryManager
+        from .parallel_processor import ParallelProcessor
+        
+        processor = ParallelProcessor(
+            memory_manager=MemoryManager(),  # Create a new memory manager
+            montage="GSN-HydroCel-129",      # Use default montage
+            resample_freq=250,               # Use default resample frequency
+            lambda2=1.0/9.0,                 # Use default lambda2
+            n_jobs=1,                        # Use single thread within each file process
+            batch_size=4,                    # Use default batch size
+            parallel_method='processes'       # Use default parallel method
+        )
+        return processor.process_file(file_path, output_dir)
+    except Exception as e:
+        logger.error(f"Error processing {os.path.basename(file_path)}: {e}")
+        return {
+            'input_file': file_path,
+            'status': 'failed',
+            'error': str(e)
+        }
 
 
 class ParallelProcessor(SequentialProcessor):
@@ -239,10 +267,10 @@ class ParallelProcessor(SequentialProcessor):
             # Get batch of epochs
             batch_epochs = epochs[start_idx:end_idx]
             
-            # Use apply_inverse_epochs with parallel processing
+            # Use apply_inverse_epochs (note: this function doesn't accept n_jobs parameter)
             batch_stcs = mne.minimum_norm.apply_inverse_epochs(
                 batch_epochs, inv, lambda2=self.lambda2, method="MNE", 
-                pick_ori='normal', verbose=False, n_jobs=self.n_jobs
+                pick_ori='normal', verbose=False
             )
             
             all_stcs.extend(batch_stcs)
@@ -252,24 +280,22 @@ class ParallelProcessor(SequentialProcessor):
         
         return all_stcs
     
+    def _process_stc(self, stc):
+        """Process a single source time course (helper method)."""
+        # Extract label time courses
+        return mne.extract_label_time_course(
+            stc, self.labels, src=self.fsaverage_src, 
+            mode='mean', verbose=False
+        )
+        
     def _convert_stc_to_eeg_parallel(self, stc_list: list, output_dir: str, subject_id: str) -> tuple:
         """Convert source estimates to EEG format with DK atlas regions using parallel processing."""
         logger.info(f"Converting {len(stc_list)} source estimates to EEG format in parallel...")
         
-        # Define function to process a single STC
-        def process_stc(stc):
-            # Extract label time courses
-            return mne.extract_label_time_course(
-                stc, self.labels, src=self.fsaverage_src, 
-                mode='mean', verbose=False
-            )
-        
-        # Use parallel processing to extract time courses
-        executor_class = ProcessPoolExecutor if self.parallel_method == 'processes' else ThreadPoolExecutor
-        
-        # Use a new executor for this task
-        with executor_class(max_workers=self.n_jobs) as executor:
-            all_label_ts = list(executor.map(process_stc, stc_list))
+        # Always use ThreadPoolExecutor for this operation to avoid pickling issues
+        # with class methods that access instance variables (self.labels, self.fsaverage_src)
+        with ThreadPoolExecutor(max_workers=self.n_jobs) as executor:
+            all_label_ts = list(executor.map(self._process_stc, stc_list))
         
         # Stack to get 3D array (n_epochs, n_regions, n_times)
         label_data = np.array(all_label_ts)
@@ -350,34 +376,26 @@ class ParallelProcessor(SequentialProcessor):
         # Use provided max_workers or default to n_jobs
         max_workers = max_workers or self.n_jobs
         
-        # Define processing function for a single file
-        def process_single_file(file_path):
-            try:
-                # Create a new processor for this process to avoid shared state issues
-                processor = ParallelProcessor(
-                    memory_manager=MemoryManager(max_memory_gb=self.memory_manager.max_memory/1e9),
-                    montage=self.montage,
-                    resample_freq=self.resample_freq,
-                    lambda2=self.lambda2,
-                    n_jobs=1,  # Use single thread within each file process
-                    batch_size=self.batch_size,
-                    parallel_method=self.parallel_method
-                )
-                return processor.process_file(file_path, output_dir)
-            except Exception as e:
-                logger.error(f"Error processing {os.path.basename(file_path)}: {e}")
-                return {
-                    'input_file': file_path,
-                    'status': 'failed',
-                    'error': str(e)
-                }
+        # For process-based parallelism, we need to pass both file_path and output_dir
+        # Use module-level helper function with output_dir
+        process_func = partial(_process_batch_helper, output_dir=output_dir)
         
-        # Process files in parallel
+        # Process files in parallel using module-level function
         results = []
         
         # Use process-based parallelism for file-level parallelism
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(process_single_file, file_list))
+            futures = [executor.submit(process_func, file_path) for file_path in file_list]
+            for future in futures:
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    logger.error(f"Error in parallel processing: {str(e)}")
+                    results.append({
+                        'status': 'failed',
+                        'error': str(e)
+                    })
         
         return results
     

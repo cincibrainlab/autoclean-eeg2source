@@ -2,25 +2,119 @@
 
 EEG source localization with Desikan-Killiany (DK) atlas regions. This package converts EEG epochs to source-localized data using the DK brain atlas.
 
+## Overview
+
+AutoClean EEG2Source is a specialized tool designed for processing high-density EEG data into source-localized representations using brain regions from the Desikan-Killiany atlas. The tool provides a robust, memory-efficient pipeline with parallel processing capabilities, GPU acceleration, and automatic error recovery.
+
 ## Features
 
 - Convert EEG epochs to source-localized data with DK atlas regions
 - Memory-efficient processing with monitoring
 - Support for EEGLAB .set file format
 - Batch processing capabilities
+- Robust error recovery mechanisms
+- Parallel processing for improved performance
+- GPU acceleration for supported operations
+- Caching of intermediate results
+- Comprehensive benchmarking tools
 - Command-line interface
+
+## Technical Requirements and Assumptions
+
+### Hardware Requirements
+
+- **Minimum**: 
+  - 8GB RAM
+  - 4 CPU cores
+  - 10GB free disk space
+- **Recommended**:
+  - 16GB+ RAM
+  - 8+ CPU cores
+  - 50GB+ free disk space
+  - NVIDIA GPU with CUDA support (for GPU acceleration)
+
+### Software Requirements
+
+- **Operating System**: 
+  - Linux (tested on Ubuntu 20.04+)
+  - macOS (10.15+)
+  - Windows 10+ (with limitations)
+- **Python**: 3.8 or higher
+- **Dependencies**:
+  - MNE-Python 1.6.0 (strict dependency)
+  - nibabel
+  - numpy
+  - pandas
+  - loguru
+  - psutil
+  - eeglabio
+  - joblib (for parallel processing)
+  - Optional: cupy, pytorch, or tensorflow (for GPU acceleration)
+
+### EEG Data Assumptions
+
+#### Supported EEG Systems and Formats
+
+This tool was **primarily designed for high-density EEG systems**, particularly:
+- **EGI/Philips** high-density nets (64, 128, 256 channel systems)
+- **BioSemi** ActiveTwo systems
+- Other systems with standardized 10-20, 10-10, or 10-5 electrode placement
+
+The EEGLAB `.set/.fdt` format is the only currently supported file format. The tool assumes data has been preprocessed and epoched using EEGLAB or a compatible tool.
+
+#### Montage Compatibility
+
+The default montage is **"GSN-HydroCel-129"** (EGI 128-channel net). Other supported montages include:
+- Standard montages: "standard_1005", "standard_1020"
+- EGI/Philips: "GSN-HydroCel-32", "GSN-HydroCel-64", "GSN-HydroCel-128", "GSN-HydroCel-256"
+- BioSemi: "biosemi16", "biosemi32", "biosemi64"
+- EasyCap: "easycap-M1"
+
+Montage mismatch will be automatically detected during validation, and the robust processor will attempt montage recovery.
+
+#### Data Quality and Preprocessing
+
+The tool assumes data that has undergone standard preprocessing steps:
+- Filtering (typically 1-40Hz bandpass)
+- Artifact rejection (eye, muscle, and other artifacts removed)
+- ICA for artifact removal (recommended)
+- Segmentation into epochs
+- Bad channel interpolation
+
+Poor quality data may yield unreliable source estimates. The tool includes quality assessment features but cannot substitute for proper preprocessing.
+
+### Source Localization Methodology
+
+#### Forward Model Assumptions
+
+- **Head model**: FSAverage template (MNI space)
+- **Source space**: Surface-based, downsampled to the Desikan-Killiany atlas regions
+- **Forward solution**: BEM (Boundary Element Method)
+- **Conductivity model**: 3-shell (scalp, skull, brain)
+
+The tool assumes the user's EEG data can be reasonably mapped to the FSAverage template. Individual head models are not supported.
+
+#### Inverse Solution Parameters
+
+- **Method**: Minimum Norm Estimate (MNE)
+- **Regularization parameter**: λ² = 1/9 (default, can be customized)
+- **Source orientation**: Normal to cortical surface
+
+These defaults are based on common practices in the literature but may not be optimal for all research questions.
+
+#### Output Representation
+
+- 68 ROIs from the Desikan-Killiany atlas (34 per hemisphere)
+- Time courses represent average activity within each region
+- "_region_info.csv" file provides metadata on each region
 
 ## Installation
 
-### Requirements
+### Install from PyPI
 
-- Python >= 3.8
-- MNE-Python 1.6.0
-- nibabel
-- numpy
-- pandas
-- loguru
-- psutil
+```bash
+pip install autoclean-eeg2source
+```
 
 ### Install from source
 
@@ -44,7 +138,7 @@ pip install -e ".[dev]"
 
 The package provides a command-line interface for processing EEG files.
 
-### Process EEG files
+### Basic Process Command
 
 Convert EEG epochs to source-localized data:
 
@@ -58,7 +152,7 @@ Process multiple files in a directory:
 autoclean-eeg2source process ./data --output-dir ./results --recursive
 ```
 
-### Validate files
+### Validation Command
 
 Check if EEG files are valid:
 
@@ -66,7 +160,13 @@ Check if EEG files are valid:
 autoclean-eeg2source validate ./data
 ```
 
-### Get file information
+Check montage compatibility:
+
+```bash
+autoclean-eeg2source validate ./data --check-montage --montage "GSN-HydroCel-129"
+```
+
+### Information Command
 
 Display information about an EEG file:
 
@@ -74,16 +174,42 @@ Display information about an EEG file:
 autoclean-eeg2source info input.set
 ```
 
-### Advanced options
+### Performance Options
+
+#### Robust Processing (Error Recovery)
 
 ```bash
-autoclean-eeg2source process input.set \
-    --output-dir ./results \
-    --montage "GSN-HydroCel-129" \
-    --resample-freq 250 \
-    --lambda2 0.1111 \
-    --max-memory 4.0 \
-    --log-level INFO
+autoclean-eeg2source process input.set --robust --error-dir ./errors
+```
+
+#### Parallel Processing
+
+```bash
+autoclean-eeg2source process ./data --parallel --n-jobs 4 --batch-processing
+```
+
+#### Memory Optimization
+
+```bash
+autoclean-eeg2source process input.set --optimized-memory --disk-offload --max-memory 8.0
+```
+
+#### Caching
+
+```bash
+autoclean-eeg2source process ./data --enable-cache
+```
+
+#### GPU Acceleration
+
+```bash
+autoclean-eeg2source process input.set --gpu --gpu-backend auto
+```
+
+### Benchmarking
+
+```bash
+autoclean-eeg2source benchmark ./data --test-all --max-files 3
 ```
 
 ## Python API Usage
@@ -113,6 +239,48 @@ else:
 The package outputs:
 - `.set` files with DK atlas regions as channels (68 regions)
 - `_region_info.csv` with region metadata (names, hemispheres, positions)
+
+## Limitations and Known Issues
+
+1. **Template-based approach**: The tool uses a template head model (FSAverage) rather than individual head models, which may reduce accuracy for participants with atypical head shapes.
+
+2. **Channel locations**: Accurate electrode positions are essential. If your actual electrode positions differ significantly from the standard montage, source estimates may be inaccurate.
+
+3. **Memory constraints**: High-density EEG with many epochs requires substantial RAM. Use the memory optimization features for large datasets.
+
+4. **GPU acceleration**: Current implementation offers limited GPU acceleration for specific operations and requires compatible hardware and software.
+
+5. **Sampling rate**: Very high sampling rates (>1000Hz) may lead to excessive memory usage. Consider downsampling during preprocessing or using the `--resample-freq` option.
+
+6. **Montage inference**: Automatic montage detection is best-effort and may not always succeed. Explicitly specify your montage when possible.
+
+## Frequently Asked Questions
+
+### Can I use this with my custom electrode layout?
+Yes, if your channel names match one of the supported standard montages. For completely custom layouts, results may be less reliable.
+
+### How do I interpret the source-localized data?
+The output contains time courses for 68 regions of the Desikan-Killiany atlas. Each channel represents the average activity in that brain region.
+
+### Can I use this for clinical diagnosis?
+No. This tool is designed for research purposes only and has not been validated for clinical applications.
+
+### How do I cite this tool?
+Please cite the GitHub repository and the relevant MNE-Python publications as this tool builds upon the MNE framework.
+
+### Is individual MRI required?
+No. The tool uses the FSAverage template. While individual MRIs would improve accuracy, they are not supported in this implementation.
+
+### How does the tool handle reference electrodes?
+EEG data is re-referenced to average reference during processing.
+
+## References and Citations
+
+When using this tool, please cite:
+
+1. The AutoClean EEG2Source repository
+2. Gramfort, A., et al. (2013). MEG and EEG data analysis with MNE-Python. Frontiers in Neuroscience, 7, 267.
+3. Desikan, R. S., et al. (2006). An automated labeling system for subdividing the human cerebral cortex on MRI scans into gyral based regions of interest. Neuroimage, 31(3), 968-980.
 
 ## Building and Publishing
 

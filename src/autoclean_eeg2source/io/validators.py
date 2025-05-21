@@ -5,6 +5,7 @@ import struct
 import logging
 from typing import Tuple, Optional, Dict, Any, List, Union
 import numpy as np
+import mne
 
 from .exceptions import (
     FileFormatError, FileMismatchError, ChannelError, 
