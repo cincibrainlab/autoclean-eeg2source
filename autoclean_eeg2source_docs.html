@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoClean EEG2Source - EEG Source Localization Made Easy</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --accent-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+            --text-color: #333;
+            --light-text: #f8f9fa;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+        }
+        
+        .hero {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 4rem 0;
+            border-radius: 0 0 20px 20px;
+            margin-bottom: 2rem;
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        section {
+            padding: 3rem 0;
+        }
+        
+        .section-header {
+            position: relative;
+            margin-bottom: 2rem;
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+        
+        .section-header::after {
+            content: '';
+            display: block;
+            width: 70px;
+            height: 4px;
+            background: var(--primary-color);
+            margin-top: 0.5rem;
+        }
+        
+        .card {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 20px rgba(0,0,0,0.12);
+        }
+        
+        .card-header {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .code-block {
+            background-color: var(--dark-bg);
+            color: var(--light-text);
+            border-radius: 5px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+        }
+        
+        .code-block pre {
+            margin: 0;
+            color: var(--light-text);
+        }
+        
+        .footer {
+            background-color: var(--secondary-color);
+            color: white;
+            padding: 2rem 0;
+            margin-top: 2rem;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+        
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        /* Improved responsive typography */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero p {
+                font-size: 1rem;
+            }
+            
+            .section-header {
+                font-size: 1.75rem;
+            }
+        }
+        
+        /* Navigation styling */
+        .navbar {
+            background-color: transparent;
+            transition: background-color 0.3s ease;
+        }
+        
+        .navbar.scrolled {
+            background-color: var(--secondary-color);
+        }
+        
+        .nav-link {
+            color: white !important;
+            margin: 0 10px;
+            font-weight: 500;
+            position: relative;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: 0;
+            left: 0;
+            background-color: white;
+            transition: width 0.3s ease;
+        }
+        
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        
+        /* Image styling */
+        .brain-image {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        /* Tab styling for installation section */
+        .nav-tabs {
+            border-bottom: 2px solid var(--primary-color);
+        }
+        
+        .nav-tabs .nav-link {
+            color: var(--text-color) !important;
+            border: none;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            margin-right: 0.5rem;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary-color) !important;
+            background-color: transparent;
+            border-bottom: 3px solid var(--primary-color);
+        }
+        
+        .tab-content {
+            padding: 1.5rem 0;
+        }
+        
+        /* Timeline for tutorial */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background-color: var(--primary-color);
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 2rem;
+            padding-left: 20px;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -10px;
+            top: 5px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+        }
+        
+        /* Call to action button */
+        .cta-button {
+            display: inline-block;
+            padding: 0.8rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-align: center;
+            text-decoration: none;
+            color: white;
+            background-color: var(--accent-color);
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(231, 76, 60, 0.4);
+            color: white;
+        }
+        
+        /* Alert styling */
+        .alert-custom {
+            background-color: #fff8e1;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .alert-custom-title {
+            color: #e65100;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .alert-custom-title i {
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">AutoClean EEG2Source</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#overview">Overview</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#features">Features</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#installation">Installation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#quickstart">Quickstart</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#examples">Examples</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#roadmap">Roadmap</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="hero">
+        <div class="container text-center">
+            <h1>AutoClean EEG2Source</h1>
+            <p class="lead">Transform your EEG data into source-localized representations using the Desikan-Killiany atlas regions with ease and efficiency</p>
+            <div class="mt-4">
+                <a href="#installation" class="btn btn-light btn-lg me-2">Get Started</a>
+                <a href="https://github.com/cincibrainlab/autoclean-eeg2source" target="_blank" class="btn btn-outline-light btn-lg">View on GitHub</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overview Section -->
+    <section id="overview" class="bg-light py-5">
+        <div class="container">
+            <h2 class="section-header">Overview</h2>
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <p>AutoClean EEG2Source is a specialized Python package designed for neuroscientists and researchers working with high-density EEG data. It provides a robust, memory-efficient pipeline for converting EEG epochs to source-localized data using brain regions from the Desikan-Killiany atlas.</p>
+                    <p>Whether you're analyzing individual recordings or processing large datasets, AutoClean EEG2Source offers the tools you need to transform scalp-level electrical activity into meaningful brain source estimations, with automatic error recovery, parallel processing, and GPU acceleration capabilities.</p>
+                    <p>Designed with beginners in mind, the package features straightforward command-line and Python interfaces, detailed documentation, and optimized performance even on modest hardware.</p>
+                    <p class="mt-3">
+                        <a href="https://pypi.org/project/autoclean-eeg2source/" target="_blank" class="btn btn-sm btn-primary me-2">
+                            <i class="bi bi-box"></i> PyPI Package
+                        </a>
+                        <a href="https://github.com/cincibrainlab/autoclean-eeg2source" target="_blank" class="btn btn-sm btn-dark">
+                            <i class="bi bi-github"></i> GitHub Repository
+                        </a>
+                    </p>
+                </div>
+                <div class="col-lg-6 text-center">
+                    <img src="https://mne.tools/stable/_images/sphx_glr_plot_eeg_mri_coords_001.png" alt="EEG Source Localization" class="brain-image img-fluid">
+                    <p class="text-muted mt-2"><small>Source localization illustration (image from MNE-Python)</small></p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features">
+        <div class="container">
+            <h2 class="section-header">Key Features</h2>
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-center">
+                                <i class="feature-icon bi bi-diagram-3"></i>
+                            </div>
+                            <h5 class="card-title text-center">Source Localization</h5>
+                            <p class="card-text">Convert EEG epochs to source-localized data with 68 regions from the Desikan-Killiany atlas.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-center">
+                                <i class="feature-icon bi bi-cpu"></i>
+                            </div>
+                            <h5 class="card-title text-center">Performance Optimized</h5>
+                            <p class="card-text">Parallel processing, GPU acceleration, and memory-efficient operations for handling large datasets.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-center">
+                                <i class="feature-icon bi bi-shield-check"></i>
+                            </div>
+                            <h5 class="card-title text-center">Robust Processing</h5>
+                            <p class="card-text">Automatic error recovery mechanisms to handle common issues with EEG data.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-center">
+                                <i class="feature-icon bi bi-terminal"></i>
+                            </div>
+                            <h5 class="card-title text-center">Easy to Use</h5>
+                            <p class="card-text">Simple command-line interface and Python API designed for both beginners and experts.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-center">
+                                <i class="feature-icon bi bi-file-earmark-check"></i>
+                            </div>
+                            <h5 class="card-title text-center">EEGLAB Compatible</h5>
+                            <p class="card-text">Works with standard EEGLAB .set/.fdt file formats, maintaining workflow compatibility.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-center">
+                                <i class="feature-icon bi bi-speedometer2"></i>
+                            </div>
+                            <h5 class="card-title text-center">Benchmarking Tools</h5>
+                            <p class="card-text">Built-in performance measurements to help optimize processing for your specific hardware.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section id="installation" class="bg-light">
+        <div class="container">
+            <h2 class="section-header">Installation</h2>
+            <p>AutoClean EEG2Source can be installed using UV or pip. UV is recommended for its faster installation speed and better dependency resolution.</p>
+            
+            <ul class="nav nav-tabs" id="installTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="uv-tab" data-bs-toggle="tab" data-bs-target="#uv" type="button" role="tab" aria-controls="uv" aria-selected="true">UV (Recommended)</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pip-tab" data-bs-toggle="tab" data-bs-target="#pip" type="button" role="tab" aria-controls="pip" aria-selected="false">Pip</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="source-tab" data-bs-toggle="tab" data-bs-target="#source" type="button" role="tab" aria-controls="source" aria-selected="false">From Source</button>
+                </li>
+            </ul>
+            
+            <div class="tab-content" id="installTabsContent">
+                <div class="tab-pane fade show active" id="uv" role="tabpanel" aria-labelledby="uv-tab">
+                    <div class="code-block">
+                        <pre><code># Install UV if you don't have it
+pip install uv
+
+# Install AutoClean EEG2Source with UV
+uv pip install autoclean-eeg2source</code></pre>
+                    </div>
+                    <p>For development installation:</p>
+                    <div class="code-block">
+                        <pre><code># Clone the repository
+git clone https://github.com/cincibrainlab/autoclean-eeg2source.git
+cd autoclean-eeg2source
+
+# Install in development mode with UV
+uv pip install -e .
+
+# With development dependencies
+uv pip install -e ".[dev]"</code></pre>
+                    </div>
+                </div>
+                
+                <div class="tab-pane fade" id="pip" role="tabpanel" aria-labelledby="pip-tab">
+                    <div class="code-block">
+                        <pre><code># Install with pip
+pip install autoclean-eeg2source</code></pre>
+                    </div>
+                </div>
+                
+                <div class="tab-pane fade" id="source" role="tabpanel" aria-labelledby="source-tab">
+                    <div class="code-block">
+                        <pre><code># Clone the repository
+git clone https://github.com/cincibrainlab/autoclean-eeg2source.git
+cd autoclean-eeg2source
+
+# Install from source
+pip install .
+
+# Or with UV (recommended)
+uv pip install .</code></pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <h4>System Requirements</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">Minimum Requirements</div>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">Python 3.9 or higher</li>
+                                <li class="list-group-item">8GB RAM</li>
+                                <li class="list-group-item">4 CPU cores</li>
+                                <li class="list-group-item">10GB free disk space</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">Recommended</div>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">Python 3.10 or higher</li>
+                                <li class="list-group-item">16GB+ RAM</li>
+                                <li class="list-group-item">8+ CPU cores</li>
+                                <li class="list-group-item">50GB+ free disk space</li>
+                                <li class="list-group-item">NVIDIA GPU with CUDA support (for acceleration)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quickstart Section -->
+    <section id="quickstart">
+        <div class="container">
+            <h2 class="section-header">Quickstart Guide</h2>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>Check your data</h4>
+                    <p>First, check information about your EEG file:</p>
+                    <div class="code-block">
+                        <pre><code>autoclean-eeg2source info path/to/your/eegfile.set</code></pre>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <h4>Validate your data</h4>
+                    <p>Ensure your file is suitable for processing:</p>
+                    <div class="code-block">
+                        <pre><code>autoclean-eeg2source validate path/to/your/eegfile.set --check-montage</code></pre>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <h4>Process your data</h4>
+                    <p>Run the source localization process:</p>
+                    <div class="code-block">
+                        <pre><code>autoclean-eeg2source process path/to/your/eegfile.set --output-dir ./output</code></pre>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <h4>Check the results</h4>
+                    <p>Your source-localized data is now available in the output directory:</p>
+                    <ul>
+                        <li><code>*_dk_regions.set</code> - Source-localized data with 68 DK atlas regions</li>
+                        <li><code>*_region_info.csv</code> - Metadata for brain regions</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="mt-5">
+                <h4>Python API Example</h4>
+                <div class="code-block">
+                    <pre><code>from autoclean_eeg2source import SequentialProcessor, MemoryManager
+
+# Initialize components
+memory_manager = MemoryManager(max_memory_gb=4)
+processor = SequentialProcessor(
+    memory_manager=memory_manager,
+    montage="GSN-HydroCel-129",
+    resample_freq=250
+)
+
+# Process a file
+result = processor.process_file("input.set", "./output")
+
+if result['status'] == 'success':
+    print(f"Output saved to: {result['output_file']}")
+else:
+    print(f"Processing failed: {result['error']}")</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Examples Section -->
+    <section id="examples" class="bg-light">
+        <div class="container">
+            <h2 class="section-header">Real-World Examples</h2>
+            
+            <div class="row mb-5">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">Example 1: Processing an EEG Study with 30 Participants</h4>
+                        </div>
+                        <div class="card-body">
+                            <p>Imagine you have completed an EEG study with 30 participants, each with preprocessed and epoched data in EEGLAB format. You now want to conduct source-level analysis using the Desikan-Killiany atlas regions.</p>
+                            
+                            <h5>Step 1: Validate all files in batch</h5>
+                            <div class="code-block">
+                                <pre><code>autoclean-eeg2source validate /path/to/study/data --recursive --check-montage --save-validation</code></pre>
+                            </div>
+                            
+                            <h5>Step 2: Process files with parallel processing and memory optimization</h5>
+                            <div class="code-block">
+                                <pre><code>autoclean-eeg2source process /path/to/study/data \
+  --output-dir ./source_data \
+  --parallel --n-jobs 8 \
+  --optimized-memory --max-memory 16.0 \
+  --recursive \
+  --robust \
+  --save-summary</code></pre>
+                            </div>
+                            
+                            <h5>Step 3: Analyze and visualize the results</h5>
+                            <p>Once processed, you can load the source-localized data in EEGLAB or use your own analysis scripts to work with the 68 brain regions. Here's a simple Python example to get you started:</p>
+                            
+                            <div class="code-block">
+                                <pre><code>import mne
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load source-localized data
+epochs = mne.io.read_epochs_eeglab('./source_data/sub01_dk_regions.set')
+
+# Load region metadata
+regions = pd.read_csv('./source_data/sub01_region_info.csv')
+
+# Plot the average activity across all epochs for a specific region
+region_name = 'bankssts-lh'  # Example region
+region_idx = regions[regions['names'] == region_name].index[0]
+
+plt.figure(figsize=(10, 5))
+plt.plot(epochs.times, epochs.get_data().mean(axis=0)[region_idx])
+plt.title(f'Average activity in {region_name}')
+plt.xlabel('Time (s)')
+plt.ylabel('Source strength (A·m)')
+plt.show()</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">Example 2: Optimizing Performance with Benchmarking</h4>
+                        </div>
+                        <div class="card-body">
+                            <p>Before processing a large dataset, it's helpful to determine which processing method will be most efficient for your specific hardware configuration.</p>
+                            
+                            <h5>Step 1: Run the benchmark</h5>
+                            <div class="code-block">
+                                <pre><code>autoclean-eeg2source benchmark /path/to/sample/data --test-all --max-files 2</code></pre>
+                            </div>
+                            
+                            <h5>Step 2: Process with the optimal method</h5>
+                            <p>Based on the benchmark results, choose the most efficient processor for your system. For example, if the GPU processor showed the best performance:</p>
+                            
+                            <div class="code-block">
+                                <pre><code>autoclean-eeg2source process /path/to/study/data \
+  --output-dir ./source_data \
+  --gpu --gpu-backend auto \
+  --enable-cache \
+  --recursive</code></pre>
+                            </div>
+                            
+                            <p>Alternatively, if parallel processing was faster:</p>
+                            
+                            <div class="code-block">
+                                <pre><code>autoclean-eeg2source process /path/to/study/data \
+  --output-dir ./source_data \
+  --parallel --n-jobs -1 \
+  --batch-processing \
+  --enable-cache \
+  --recursive</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap Section -->
+    <section id="roadmap">
+        <div class="container">
+            <h2 class="section-header">Development Roadmap</h2>
+            
+            <div class="alert-custom">
+                <div class="alert-custom-title">
+                    <i class="bi bi-info-circle-fill"></i> Important Note
+                </div>
+                <p><strong>Current Development:</strong> We are actively working on several important enhancements to make AutoClean EEG2Source even more versatile and user-friendly:</p>
+                <ol>
+                    <li><strong>Continuous Data Support:</strong> While the current version works with epoched data, we're developing support for continuous EEG data processing, removing the requirement for pre-epoched data.</li>
+                    <li><strong>Configuration File System:</strong> We're implementing a YAML-based configuration system to easily customize processing parameters without command-line arguments, making it simpler to use with custom datasets and research requirements.</li>
+                    <li><strong>Enhanced Validation:</strong> Advanced data quality assessment tools to ensure your data meets requirements for reliable source localization.</li>
+                </ol>
+                <p class="mt-3 mb-0">These features are part of our commitment to making advanced neuroimaging techniques accessible to researchers of all experience levels. Stay updated by following our <a href="https://github.com/cincibrainlab/autoclean-eeg2source" target="_blank">GitHub repository</a>.</p>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="mb-0">Planned Features</h5>
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-hourglass-split me-2 text-warning"></i>
+                                Continuous EEG data processing
+                            </li>
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-hourglass-split me-2 text-warning"></i>
+                                YAML configuration file support
+                            </li>
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-hourglass-split me-2 text-warning"></i>
+                                Improved automatic montage detection
+                            </li>
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-hourglass-split me-2 text-warning"></i>
+                                Expanded source visualization tools
+                            </li>
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-hourglass-split me-2 text-warning"></i>
+                                Support for additional source reconstruction methods
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="mb-0">Get Involved</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>We welcome contributions and feedback from the community! There are several ways to get involved:</p>
+                            <ul>
+                                <li>Report bugs or suggest features through <a href="https://github.com/cincibrainlab/autoclean-eeg2source/issues" target="_blank">GitHub Issues</a></li>
+                                <li>Contribute code via pull requests</li>
+                                <li>Share your use cases to help us improve the tool</li>
+                                <li>Cite our work in your publications</li>
+                            </ul>
+                            <p class="mt-3">For questions and support, please reach out through the GitHub repository or contact the authors directly.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-5">
+                <a href="#installation" class="cta-button">Get Started with AutoClean EEG2Source</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>AutoClean EEG2Source</h5>
+                    <p>EEG source localization with Desikan-Killiany atlas regions</p>
+                    <div class="mt-3">
+                        <a href="https://pypi.org/project/autoclean-eeg2source/" target="_blank" class="text-white me-3">
+                            <i class="bi bi-box"></i> PyPI
+                        </a>
+                        <a href="https://github.com/cincibrainlab/autoclean-eeg2source" target="_blank" class="text-white">
+                            <i class="bi bi-github"></i> GitHub
+                        </a>
+                    </div>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>Created by the AutoClean Team</p>
+                    <p><small>MIT License</small></p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <script>
+        // Change navbar background on scroll
+        window.addEventListener('scroll', function() {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+    </script>
+</body>
+</html>
