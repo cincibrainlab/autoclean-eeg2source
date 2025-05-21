@@ -333,14 +333,18 @@
             <div class="row align-items-center">
                 <div class="col-lg-6">
                     <p>AutoClean EEG2Source is a specialized Python package designed for neuroscientists and researchers working with high-density EEG data. It provides a robust, memory-efficient pipeline for converting EEG epochs to source-localized data using brain regions from the Desikan-Killiany atlas.</p>
+                    <p><strong>Powered by MNE-Python:</strong> Our package builds upon the excellent <a href="https://mne.tools/stable/index.html" target="_blank">MNE-Python</a> framework, the leading open-source solution for analyzing EEG, MEG, and other neurophysiological data. We gratefully acknowledge the MNE development team for creating this exceptional foundation.</p>
                     <p>Whether you're analyzing individual recordings or processing large datasets, AutoClean EEG2Source offers the tools you need to transform scalp-level electrical activity into meaningful brain source estimations, with automatic error recovery, parallel processing, and GPU acceleration capabilities.</p>
                     <p>Designed with beginners in mind, the package features straightforward command-line and Python interfaces, detailed documentation, and optimized performance even on modest hardware.</p>
                     <p class="mt-3">
                         <a href="https://pypi.org/project/autoclean-eeg2source/" target="_blank" class="btn btn-sm btn-primary me-2">
                             <i class="bi bi-box"></i> PyPI Package
                         </a>
-                        <a href="https://github.com/cincibrainlab/autoclean-eeg2source" target="_blank" class="btn btn-sm btn-dark">
+                        <a href="https://github.com/cincibrainlab/autoclean-eeg2source" target="_blank" class="btn btn-sm btn-dark me-2">
                             <i class="bi bi-github"></i> GitHub Repository
+                        </a>
+                        <a href="https://mne.tools/stable/index.html" target="_blank" class="btn btn-sm btn-success">
+                            <i class="bi bi-box-arrow-up-right"></i> MNE-Python
                         </a>
                     </p>
                 </div>
@@ -760,6 +764,37 @@ plt.show()</code></pre>
         </div>
     </section>
 
+    <!-- Acknowledgments Section -->
+    <section class="bg-light py-4">
+        <div class="container">
+            <h3 class="text-center mb-4">Acknowledgments</h3>
+            <div class="row justify-content-center">
+                <div class="col-lg-10">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-3 text-center mb-3 mb-md-0">
+                                    <a href="https://mne.tools/stable/index.html" target="_blank">
+                                        <img src="https://mne.tools/stable/_static/mne_logo.svg" alt="MNE-Python Logo" class="img-fluid" style="max-height: 100px;">
+                                    </a>
+                                </div>
+                                <div class="col-md-9">
+                                    <h4>MNE-Python Project</h4>
+                                    <p>AutoClean EEG2Source is built upon the <a href="https://mne.tools/stable/index.html" target="_blank">MNE-Python</a> ecosystem and utilizes many of its powerful source localization algorithms. We are deeply grateful to the MNE development team and the broader MNE community for creating and maintaining this essential neuroimaging toolkit.</p>
+                                    <p>When using AutoClean EEG2Source, please also cite the MNE-Python publications:</p>
+                                    <ul>
+                                        <li>Gramfort, A., et al. (2013). MEG and EEG data analysis with MNE-Python. <em>Frontiers in Neuroscience, 7</em>, 267. <a href="https://doi.org/10.3389/fnins.2013.00267" target="_blank">https://doi.org/10.3389/fnins.2013.00267</a></li>
+                                        <li>Gramfort, A., et al. (2014). MNE software for processing MEG and EEG data. <em>NeuroImage, 86</em>, 446-460. <a href="https://doi.org/10.1016/j.neuroimage.2013.10.027" target="_blank">https://doi.org/10.1016/j.neuroimage.2013.10.027</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
@@ -771,14 +806,18 @@ plt.show()</code></pre>
                         <a href="https://pypi.org/project/autoclean-eeg2source/" target="_blank" class="text-white me-3">
                             <i class="bi bi-box"></i> PyPI
                         </a>
-                        <a href="https://github.com/cincibrainlab/autoclean-eeg2source" target="_blank" class="text-white">
+                        <a href="https://github.com/cincibrainlab/autoclean-eeg2source" target="_blank" class="text-white me-3">
                             <i class="bi bi-github"></i> GitHub
+                        </a>
+                        <a href="https://mne.tools/stable/index.html" target="_blank" class="text-white">
+                            <i class="bi bi-award"></i> MNE-Python
                         </a>
                     </div>
                 </div>
                 <div class="col-md-6 text-md-end">
                     <p>Created by the AutoClean Team</p>
                     <p><small>MIT License</small></p>
+                    <p><small>Built on <a href="https://mne.tools/stable/index.html" target="_blank" class="text-white">MNE-Python</a></small></p>
                 </div>
             </div>
         </div>

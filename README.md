@@ -2,6 +2,8 @@
 
 EEG source localization with Desikan-Killiany (DK) atlas regions. This package converts EEG epochs to source-localized data using the DK brain atlas.
 
+> **Built on MNE-Python**: AutoClean EEG2Source is powered by [MNE-Python](https://mne.tools/stable/index.html), the leading open-source Python package for analyzing EEG, MEG, and other neurophysiological data. We gratefully acknowledge the MNE development team for creating this exceptional foundation for neurophysiological data analysis.
+
 ## Overview
 
 AutoClean EEG2Source is a specialized tool designed for processing high-density EEG data into source-localized representations using brain regions from the Desikan-Killiany atlas. The tool provides a robust, memory-efficient pipeline with parallel processing capabilities, GPU acceleration, and automatic error recovery.
@@ -300,8 +302,13 @@ EEG data is re-referenced to average reference during processing.
 When using this tool, please cite:
 
 1. The AutoClean EEG2Source repository
-2. Gramfort, A., et al. (2013). MEG and EEG data analysis with MNE-Python. Frontiers in Neuroscience, 7, 267.
-3. Desikan, R. S., et al. (2006). An automated labeling system for subdividing the human cerebral cortex on MRI scans into gyral based regions of interest. Neuroimage, 31(3), 968-980.
+2. **MNE-Python**: Gramfort, A., et al. (2013). MEG and EEG data analysis with MNE-Python. Frontiers in Neuroscience, 7, 267. https://doi.org/10.3389/fnins.2013.00267
+3. **MNE-Python Inverse Imaging**: Gramfort, A., et al. (2014). MNE software for processing MEG and EEG data. NeuroImage, 86, 446-460. https://doi.org/10.1016/j.neuroimage.2013.10.027
+4. Desikan, R. S., et al. (2006). An automated labeling system for subdividing the human cerebral cortex on MRI scans into gyral based regions of interest. Neuroimage, 31(3), 968-980.
+
+### MNE-Python Acknowledgment
+
+AutoClean EEG2Source is built upon the MNE-Python ecosystem and utilizes many of its powerful source localization algorithms. We are deeply grateful to the MNE development team and the broader MNE community for creating and maintaining this essential neuroimaging toolkit. Please visit [MNE-Python](https://mne.tools/stable/index.html) for more information about this incredible framework.
 
 ## Building and Publishing
 
