@@ -32,5 +32,5 @@ output_dir = "test_data"
 os.makedirs(output_dir, exist_ok=True)
 output_file = os.path.join(output_dir, "test_epochs.set")
 
-epochs.export(output_file, fmt='eeglab')
+epochs.export(output_file, fmt='eeglab', overwrite=True)
 print(f"Created test file: {output_file}")

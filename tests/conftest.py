@@ -46,7 +46,7 @@ def create_set_file(temp_dir, create_clean_epochs):
     try:
         # Try to actually save a real EEGLAB .set file
         set_file = os.path.join(temp_dir, "test_epochs.set")
-        create_clean_epochs.export(set_file, fmt='eeglab')
+        create_clean_epochs.export(set_file, fmt='eeglab', overwrite=True)
         
         # If we get here, export worked
         return set_file

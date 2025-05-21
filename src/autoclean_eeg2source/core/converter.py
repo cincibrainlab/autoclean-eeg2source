@@ -275,7 +275,7 @@ class SequentialProcessor:
         # Save to EEGLAB format
         os.makedirs(output_dir, exist_ok=True)
         output_file = os.path.join(output_dir, f"{subject_id}_dk_regions.set")
-        epochs.export(output_file, fmt='eeglab')
+        epochs.export(output_file, fmt='eeglab', overwrite=True)
         
         logger.info(f"Saved {n_regions} regions to {output_file}")
         
