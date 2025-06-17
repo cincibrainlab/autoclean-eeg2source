@@ -297,7 +297,7 @@ class GPUProcessor(ParallelProcessor):
             
             # Validate input file
             logger.info(f"Processing: {os.path.basename(input_file)}")
-            self.validator.validate_file_pair(input_file)
+            report = self.validator.validate_file_pair(input_file)
             
             # Check memory before starting
             self.memory_manager.check_available()
@@ -309,7 +309,10 @@ class GPUProcessor(ParallelProcessor):
             
             # Load epochs
             read_start = time.time()
-            epochs = self.reader.read_epochs(input_file)
+            if report['file_type'] == 'epochs':
+                epochs = self.reader.read_epochs(input_file)
+            else:
+                epochs = self.reader.read_raw(input_file)
             self.metrics['read_time'] = time.time() - read_start
             
             # Set montage

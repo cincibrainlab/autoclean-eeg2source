@@ -133,16 +133,19 @@ class SequentialProcessor:
         try:
             # Validate input file
             logger.info(f"Processing: {os.path.basename(input_file)}")
-            self.validator.validate_file_pair(input_file)
-            
+            report = self.validator.validate_file_pair(input_file)
+                       
             # Check memory before starting
             self.memory_manager.check_available()
             
             # Setup fsaverage if needed
             self._setup_fsaverage()
-            
+                        
             # Load epochs
-            epochs = self.reader.read_epochs(input_file)
+            if report['file_type'] == 'epochs':
+                epochs = self.reader.read_epochs(input_file)
+            else:
+                epochs = self.reader.read_raw(input_file)
             
             # Set montage
             logger.info(f"Setting montage: {self.montage}")
@@ -172,20 +175,34 @@ class SequentialProcessor:
             inv = mne.minimum_norm.make_inverse_operator(
                 epochs.info, fwd, noise_cov, verbose=False
             )
+
             
             # Apply inverse solution
             logger.info("Applying inverse solution to epochs...")
-            stcs = mne.minimum_norm.apply_inverse_epochs(
-                epochs, inv, lambda2=self.lambda2, method="MNE", 
-                pick_ori='normal', verbose=False
-            )
+            if report['file_type'] == 'epochs':
+                stcs = mne.minimum_norm.apply_inverse_epochs(
+                        epochs, inv, lambda2=self.lambda2, method="MNE", 
+                        pick_ori='normal', verbose=False
+                    )
+            else:
+                if report['file_type'] == 'raw':
+                    stcs = mne.minimum_norm.apply_inverse_raw(
+                        epochs, inv, lambda2=self.lambda2, method="MNE", 
+                        pick_ori='normal', verbose=False
+                    )
             
             # Convert to EEG format with DK regions
             logger.info("Converting source estimates to EEG format...")
-            output_epochs, output_file = self._convert_stc_to_eeg(
-                stcs, output_dir, 
-                subject_id=os.path.splitext(os.path.basename(input_file))[0]
-            )
+            if report['file_type'] == 'epochs':
+                output_epochs, output_file = self._convert_stc_to_eeg(
+                    stcs, output_dir, 
+                    subject_id=os.path.splitext(os.path.basename(input_file))[0]
+                )
+            else:
+                output_epochs, output_file = self.convert_raw_stc_to_eeg(
+                    stcs, output_dir, 
+                    subject_id=os.path.splitext(os.path.basename(input_file))[0]
+                )
             
             # Update result
             result['status'] = 'success'
@@ -307,3 +324,88 @@ class SequentialProcessor:
         info_file = os.path.join(output_dir, f"{subject_id}_region_info.csv")
         pd.DataFrame(region_info).to_csv(info_file, index=False)
         logger.debug(f"Saved region info to {info_file}")
+
+    def convert_raw_stc_to_eeg(self, stc: mne.SourceEstimate, output_dir: str, subject_id: str) -> tuple:
+        """
+        Convert a single raw SourceEstimate to EEG format with DK atlas regions.
+        
+        Parameters
+        ----------
+        stc : mne.SourceEstimate
+            Source estimate from continuous/raw data
+        output_dir : str
+            Directory to save output files
+        subject_id : str
+            Subject identifier for naming output files
+            
+        Returns
+        -------
+        raw : mne.io.Raw
+            Raw object with source time courses
+        output_file : str
+            Path to saved output file
+        """
+        logger.info("Converting raw source estimate to EEG format...")
+        
+        # Extract time series for each label
+        logger.info(f"Extracting time courses for {len(self.labels)} regions...")
+        label_ts = mne.extract_label_time_course(
+            stc, self.labels, src=self.fsaverage_src, 
+            mode='mean', verbose=False
+        )
+        
+        # Get properties
+        n_regions = len(self.labels)
+        n_times = stc.data.shape[1]
+        sfreq = 1.0 / stc.tstep
+        ch_names = [label.name for label in self.labels]
+        
+        # Create channel positions
+        ch_pos = {}
+        for i, label in enumerate(self.labels):
+            # Extract centroid of the label
+            if hasattr(label, 'pos') and len(label.pos) > 0:
+                centroid = np.mean(label.pos, axis=0)
+            else:
+                # If no positions available, create a point on a unit sphere using golden ratio
+                phi = (1 + np.sqrt(5)) / 2
+                idx = i + 1
+                theta = 2 * np.pi * idx / phi**2
+                phi = np.arccos(1 - 2 * ((idx % phi**2) / phi**2))
+                centroid = np.array([
+                    np.sin(phi) * np.cos(theta),
+                    np.sin(phi) * np.sin(theta),
+                    np.cos(phi)
+                ]) * 0.1  # Scaled to approximate head radius
+            
+            # Store in dictionary
+            ch_pos[label.name] = centroid
+        
+        # Create MNE Info
+        info = mne.create_info(
+            ch_names=ch_names, 
+            sfreq=sfreq, 
+            ch_types=['eeg'] * n_regions
+        )
+        
+        # Update channel positions
+        for idx, ch_name in enumerate(ch_names):
+            info['chs'][idx]['loc'][:3] = ch_pos[ch_name]
+        
+        # Create Raw object
+        raw = mne.io.RawArray(
+            label_ts, info, first_samp=0,
+            verbose=False
+        )
+        
+        # Save to EEGLAB format
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, f"{subject_id}_dk_regions.set")
+        raw.export(output_file, fmt='eeglab', overwrite=True)
+        
+        logger.info(f"Saved {n_regions} regions to {output_file}")
+        
+        # Save metadata
+        self._save_metadata(output_dir, subject_id, ch_names, ch_pos)
+        
+        return raw, output_file

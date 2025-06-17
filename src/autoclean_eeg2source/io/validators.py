@@ -101,7 +101,8 @@ class EEGLABValidator:
                     'n_times': n_times,
                     'sfreq': sfreq,
                     'duration': n_times / sfreq,
-                    'ch_names': epochs.ch_names
+                    'ch_names': epochs.ch_names,
+                    'file_type': 'epochs'
                 })
                 
                 # Check for invalid values in data
@@ -134,6 +135,59 @@ class EEGLABValidator:
                 error = f"Required FDT file not found: {e}"
                 report['errors'].append(error)
                 raise FileNotFoundError(error)
+            
+            except Exception as e:
+                # Try loading as raw continuous file instead
+                logger.info(f"Could not load as epochs, trying as raw continuous file: {str(e)}")
+                try:
+                    raw = mne.io.read_raw_eeglab(set_file, verbose=False)
+                    
+                    # Get basic info
+                    n_channels = len(raw.ch_names)
+                    n_times = raw.n_times
+                    sfreq = raw.info['sfreq']
+                    duration = raw.times[-1]
+                    
+                    # Store in report
+                    report.update({
+                        'n_channels': n_channels,
+                        'n_times': n_times,
+                        'sfreq': sfreq,
+                        'duration': duration,
+                        'ch_names': raw.ch_names,
+                        'file_type': 'raw'
+                    })
+                    
+                    # Check for invalid values in data
+                    if strict:
+                        data = raw.get_data()
+                        
+                        # Check for NaN/Inf
+                        invalid_mask = ~np.isfinite(data)
+                        invalid_count = np.sum(invalid_mask)
+                        
+                        if invalid_count > 0:
+                            invalid_percent = (invalid_count / data.size) * 100
+                            error = (
+                                f"Data contains {invalid_count} invalid values "
+                                f"({invalid_percent:.2f}% NaN/Inf)"
+                            )
+                            report['errors'].append(error)
+                            raise CorruptedDataError(error)
+                    
+                    # Success
+                    logger.info(
+                        f"SET file valid (raw): {n_channels} channels, "
+                        f"{n_times} samples @ {sfreq}Hz, duration: {duration:.2f}s"
+                    )
+                    report['valid'] = True
+                    return report
+                    
+                except Exception as nested_e:
+                    # Both epochs and raw loading failed
+                    error = f"Failed to load as epochs or raw: {str(e)}; {str(nested_e)}"
+                    report['errors'].append(error)
+                    raise FileFormatError(error)
                 
         except Exception as e:
             # Other validation errors
@@ -146,7 +200,6 @@ class EEGLABValidator:
                 raise FileMismatchError(f"Mismatched SET/FDT files: {error}")
             else:
                 raise FileFormatError(f"Invalid EEGLAB file: {error}")
-    
     def validate_montage(self, epochs: mne.Epochs, montage_name: str) -> Dict[str, Any]:
         """
         Validate if montage is compatible with the epochs.

@@ -22,7 +22,49 @@ class EEGLABReader:
             Memory manager instance for monitoring
         """
         self.memory_manager = memory_manager
+
+    def read_raw(self, set_file: str, preload: bool = True) -> mne.io.Raw:
+        """
+        Read raw data from EEGLAB .set file.
         
+        Parameters
+        ----------
+        set_file : str
+            Path to .set file
+        preload : bool
+            Whether to preload data into memory
+            
+        Returns
+        -------
+        raw : mne.Raw
+            Loaded raw data object
+        """
+        logger.info(f"Reading raw data from {os.path.basename(set_file)}")
+        
+        # Check memory before loading
+        if self.memory_manager:
+            self.memory_manager.check_available()
+
+        try:
+            # Read raw data with MNE
+            raw = mne.io.read_raw_eeglab(set_file, verbose=False)
+            
+            # Log basic info
+            logger.info(
+                f"Loaded raw data: {len(raw.ch_names)} channels, "
+                f"{raw.n_times} timepoints @ {raw.info['sfreq']}Hz"
+            )
+            
+            # Check memory after loading
+            if self.memory_manager:
+                self.memory_manager.log_memory_status("After loading raw data")
+            
+            return raw
+            
+        except Exception as e:
+            logger.error(f"Failed to read raw data: {e}")
+            raise
+
     def read_epochs(self, set_file: str, preload: bool = True) -> mne.Epochs:
         """
         Read epochs from EEGLAB .set file.
