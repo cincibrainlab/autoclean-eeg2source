@@ -196,7 +196,8 @@ class SequentialProcessor:
             if report['file_type'] == 'epochs':
                 output_epochs, output_file = self._convert_stc_to_eeg(
                     stcs, output_dir, 
-                    subject_id=os.path.splitext(os.path.basename(input_file))[0]
+                    subject_id=os.path.splitext(os.path.basename(input_file))[0],
+                    original_epochs=epochs
                 )
             else:
                 output_epochs, output_file = self.convert_raw_stc_to_eeg(
@@ -228,7 +229,7 @@ class SequentialProcessor:
             
         return result
         
-    def _convert_stc_to_eeg(self, stc_list: list, output_dir: str, subject_id: str) -> tuple:
+    def _convert_stc_to_eeg(self, stc_list: list, output_dir: str, subject_id: str, original_epochs: mne.Epochs = None) -> tuple:
         """
         Convert source estimates to EEG format with DK atlas regions.
         
@@ -288,9 +289,50 @@ class SequentialProcessor:
         for idx, ch_name in enumerate(ch_names):
             info['chs'][idx]['loc'][:3] = ch_pos[ch_name]
         
-        # Create epochs
-        events = np.array([[i, 0, 1] for i in range(n_epochs)])
-        event_id = {'event': 1}
+        # Create epochs with proper event handling
+        if original_epochs is not None and hasattr(original_epochs, 'event_id') and hasattr(original_epochs, 'events'):
+            # Preserve original event structure
+            event_id = original_epochs.event_id.copy()
+            # Use proper sample indices based on epoch timing to avoid EEGLABIO issues
+            if len(original_epochs.events) == n_epochs:
+                # Create realistic sample indices with padding to avoid EEGLABIO issues
+                events = []
+                epoch_duration = stc_list[0].times[-1] - stc_list[0].times[0]
+                epoch_length_samples = int(sfreq * epoch_duration)
+                # Add padding between epochs to prevent EEGLABIO from adding dummy events
+                padding_samples = int(sfreq * 0.1)  # 100ms padding
+                epoch_spacing = epoch_length_samples + padding_samples
+                
+                for i in range(n_epochs):
+                    sample_idx = i * epoch_spacing
+                    events.append([sample_idx, 0, original_epochs.events[i, 2]])
+                events = np.array(events)
+            else:
+                # Fallback: use the first event code from original data
+                first_event_code = list(event_id.values())[0]
+                events = []
+                epoch_duration = stc_list[0].times[-1] - stc_list[0].times[0]
+                epoch_length_samples = int(sfreq * epoch_duration)
+                padding_samples = int(sfreq * 0.1)  # 100ms padding
+                epoch_spacing = epoch_length_samples + padding_samples
+                
+                for i in range(n_epochs):
+                    sample_idx = i * epoch_spacing
+                    events.append([sample_idx, 0, first_event_code])
+                events = np.array(events)
+        else:
+            # Default fallback
+            events = []
+            epoch_duration = stc_list[0].times[-1] - stc_list[0].times[0]
+            epoch_length_samples = int(sfreq * epoch_duration)
+            padding_samples = int(sfreq * 0.1)  # 100ms padding
+            epoch_spacing = epoch_length_samples + padding_samples
+            
+            for i in range(n_epochs):
+                sample_idx = i * epoch_spacing
+                events.append([sample_idx, 0, 1])
+            events = np.array(events)
+            event_id = {'event': 1}
         tmin = stc_list[0].tmin
         
         epochs = mne.EpochsArray(

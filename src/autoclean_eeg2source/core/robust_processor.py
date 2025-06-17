@@ -649,7 +649,7 @@ class RobustProcessor(SequentialProcessor):
             
             # Convert to EEG format
             _, output_file = self._convert_stc_to_eeg(
-                stcs, output_dir, subject_id
+                stcs, output_dir, subject_id, original_epochs=epochs
             )
             
             # Success
