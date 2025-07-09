@@ -1,11 +1,12 @@
 """AutoClean EEG2Source: EEG source localization with DK atlas regions."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.1"
 __author__ = "AutoClean Team"
 
 from .core.converter import SequentialProcessor
 from .core.memory_manager import MemoryManager
 from .core.robust_processor import RobustProcessor
+from .core.continuous_processor import ContinuousProcessor
 from .io.eeglab_reader import EEGLABReader
 from .io.validators import EEGLABValidator
 from .io.data_quality import QualityAssessor
@@ -16,6 +17,7 @@ __all__ = [
     # Core processing
     "SequentialProcessor",
     "RobustProcessor",
+    "ContinuousProcessor",
     "MemoryManager",
     
     # IO and validation

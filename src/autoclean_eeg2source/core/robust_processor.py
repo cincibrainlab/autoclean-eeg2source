@@ -603,6 +603,10 @@ class RobustProcessor(SequentialProcessor):
         }
         
         try:
+            # Pick EEG channels first to remove EOG, ECG, etc.
+            logger.info("Selecting EEG channels only")
+            epochs.pick("eeg")
+            
             # Set montage if needed
             if not epochs.get_montage():
                 logger.info(f"Setting montage: {self.montage}")
@@ -613,8 +617,6 @@ class RobustProcessor(SequentialProcessor):
                     )
                 except Exception as e:
                     logger.warning(f"Could not set montage: {e} - continuing without")
-            
-            epochs.pick("eeg")
             
             # Resample if needed
             if epochs.info['sfreq'] != self.resample_freq:

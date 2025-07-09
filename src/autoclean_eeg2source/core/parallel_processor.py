@@ -178,13 +178,16 @@ class ParallelProcessor(SequentialProcessor):
                 epochs = self.reader.read_raw(input_file)
             self.metrics['read_time'] = time.time() - read_start
             
+            # Pick EEG channels first to remove EOG, ECG, etc.
+            logger.info("Selecting EEG channels only")
+            epochs.pick("eeg")
+            
             # Set montage
             logger.info(f"Setting montage: {self.montage}")
             epochs.set_montage(
                 mne.channels.make_standard_montage(self.montage), 
                 match_case=False
             )
-            epochs.pick("eeg")
             
             # Resample if needed
             if epochs.info['sfreq'] != self.resample_freq:
