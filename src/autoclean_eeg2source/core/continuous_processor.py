@@ -123,6 +123,14 @@ class ContinuousProcessor(SequentialProcessor):
             
             # Pick EEG channels first to remove EOG, ECG, etc.
             logger.info("Selecting EEG channels only")
+            
+            # First set channel types for known EOG channels
+            eog_channels = [ch for ch in raw.ch_names if any(eog in ch.upper() for eog in ['EOG', 'HEOG', 'VEOG'])]
+            if eog_channels:
+                logger.info(f"Setting {len(eog_channels)} EOG channels: {eog_channels}")
+                raw.set_channel_types({ch: 'eog' for ch in eog_channels})
+            
+            # Now pick only EEG channels
             raw.pick("eeg")
             
             # Set montage
