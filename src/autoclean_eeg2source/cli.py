@@ -20,6 +20,7 @@ from .io.data_quality import QualityAssessor
 from .utils.logging import setup_logger
 from .utils.error_reporter import ErrorReporter, ErrorHandler
 from .utils.benchmarking import PerformanceBenchmark
+from . import __version__
 
 
 def find_set_files(input_path: str, recursive: bool = False) -> List[str]:
@@ -691,6 +692,13 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="AutoClean EEG2Source - EEG source localization with DK atlas regions"
+    )
+    
+    # Version option
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"autoclean-eeg2source {__version__}"
     )
     
     # Global options
