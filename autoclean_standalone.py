@@ -295,7 +295,7 @@ class StandaloneEEGProcessor:
     4. Error handling preserves scientific validity
     """
     
-    def __init__(self, config_path=DEFAULT_CONFIG_PATH):
+    def __init__(self, config_path=DEFAULT_CONFIG_PATH, use_simulation=False):
         # Check critical dependencies first
         self._check_dependencies()
         
@@ -303,6 +303,7 @@ class StandaloneEEGProcessor:
         self.config.validate_scientific_parameters()
         self.data_loader = DataLoader(self.config)
         self.results = {}
+        self.use_simulation = use_simulation  # Flag to force simulation for testing
         
         # Initialize memory monitoring
         self.memory_threshold = self.config.get_parameter('processing_parameters', 'memory_threshold_gb') * 1e9
@@ -342,7 +343,10 @@ class StandaloneEEGProcessor:
         dict
             Processing results with scientific metadata
         """
+        import time
+        
         try:
+            start_time = time.time()
             self.config._log_action("Starting single file processing", 
                                    {'file': str(set_file_path)})
             
@@ -351,9 +355,13 @@ class StandaloneEEGProcessor:
                 warnings.warn("High memory usage detected. Processing may be slow.")
             
             # Step 1: Load and validate data
+            step_start = time.time()
             data = self.data_loader.load_eeglab_file(set_file_path)
+            step_time = time.time() - step_start
+            print(f"⏱️  Step 1 - Data loading: {step_time:.2f}s")
             
             # Step 2: Handle different data types and preprocessing
+            step_start = time.time()
             if isinstance(data, mne.epochs.BaseEpochs):
                 # Data is already epoched, apply minimal preprocessing
                 epochs = self._preprocess_data(data)
@@ -363,20 +371,38 @@ class StandaloneEEGProcessor:
                 # Data is continuous, need preprocessing and epoching
                 raw_preprocessed = self._preprocess_data(data)
                 epochs = self._create_epochs(raw_preprocessed)
+            step_time = time.time() - step_start
+            print(f"⏱️  Step 2 - Preprocessing: {step_time:.2f}s")
             
-            # Step 4: Build forward model
+            # Step 3: Build forward model
+            step_start = time.time()
             forward = self._build_forward_model(epochs.info)
+            step_time = time.time() - step_start
+            print(f"⏱️  Step 3 - Forward model: {step_time:.2f}s")
             
-            # Step 5: Compute inverse solution
+            # Step 4: Compute inverse solution
+            step_start = time.time()
             source_estimates = self._compute_inverse_solution(epochs, forward)
+            step_time = time.time() - step_start
+            print(f"⏱️  Step 4 - Inverse solution: {step_time:.2f}s")
             
-            # Step 6: Apply atlas parcellation
+            # Step 5: Apply atlas parcellation
+            step_start = time.time()
             atlas_timecourses = self._apply_atlas_parcellation(source_estimates)
+            step_time = time.time() - step_start
+            print(f"⏱️  Step 5 - Atlas parcellation: {step_time:.2f}s")
             
-            # Step 7: Generate outputs
+            # Step 6: Generate outputs
+            step_start = time.time()
             output_path = Path(output_dir)
             results = self._save_results(set_file_path, atlas_timecourses, 
                                        source_estimates, output_path)
+            step_time = time.time() - step_start
+            print(f"⏱️  Step 6 - Save results: {step_time:.2f}s")
+            
+            # Total processing time
+            total_time = time.time() - start_time
+            print(f"⏱️  Total processing time: {total_time:.2f}s")
             
             self.config._log_action("Processing completed successfully")
             return results
@@ -539,6 +565,11 @@ class StandaloneEEGProcessor:
         self.config._log_action("Building forward model", 
                                {'subject': 'fsaverage', 'spacing': 'ico4'})
         
+        # Skip forward model if simulation mode is enabled
+        if self.use_simulation:
+            self.config._log_action("Skipping forward model (simulation mode)")
+            return None
+        
         try:
             # 1. Use pre-computed fsaverage source space and BEM
             # This is more reliable than trying to create from scratch
@@ -624,9 +655,12 @@ class StandaloneEEGProcessor:
         
         self.config._log_action("Computing inverse solution", {'lambda2': lambda2})
         
-        if forward is None:
-            # Fallback to simulation if forward model failed
-            warnings.warn("Using simulated inverse solution due to forward model failure")
+        if forward is None or self.use_simulation:
+            # Fallback to simulation if forward model failed or forced
+            if self.use_simulation:
+                warnings.warn("Using simulation mode for fast testing")
+            else:
+                warnings.warn("Using simulated inverse solution due to forward model failure")
             n_epochs = len(epochs)
             n_sources = len(DESIKAN_KILLIANY_REGIONS)
             n_times = len(epochs.times)
@@ -648,8 +682,22 @@ class StandaloneEEGProcessor:
             
             # 2. Compute noise covariance from the epochs
             # Use baseline period for noise estimation
-            noise_cov = mne.compute_covariance(epochs_copy, tmin=None, tmax=0, 
-                                             method='empirical', verbose=False)
+            # For large epoch counts, use a faster method and/or subsample
+            n_epochs = len(epochs_copy)
+            if n_epochs > 20:
+                # For large epoch counts, use a small subset for covariance computation
+                # 10-15 epochs is usually sufficient for covariance estimation
+                n_subset = min(15, n_epochs)
+                epoch_indices = np.linspace(0, n_epochs-1, n_subset, dtype=int)
+                epochs_subset = epochs_copy[epoch_indices]
+                self.config._log_action("Using epoch subset for covariance", 
+                                      {'n_epochs_used': len(epochs_subset), 'n_total': n_epochs})
+                # Use empirical method but with small subset for speed
+                noise_cov = mne.compute_covariance(epochs_subset, tmin=None, tmax=0, 
+                                                 method='empirical', verbose=False)
+            else:
+                noise_cov = mne.compute_covariance(epochs_copy, tmin=None, tmax=0, 
+                                                 method='empirical', verbose=False)
             
             # 2. Create inverse operator
             inverse_operator = mne.minimum_norm.make_inverse_operator(
@@ -700,11 +748,94 @@ class StandaloneEEGProcessor:
                                {'atlas': 'desikan_killiany', 
                                 'n_regions': len(DESIKAN_KILLIANY_REGIONS)})
         
-        # For now, the source estimates are already in atlas space
-        # Real implementation would project from source space to atlas regions
+        # Check if source_estimates is real MNE data or simulation
+        if source_estimates.shape[0] == len(DESIKAN_KILLIANY_REGIONS):
+            # This is simulation data, already in atlas space
+            self.config._log_action("Using simulated atlas data")
+            atlas_data = source_estimates
+        else:
+            # This is real MNE source space data, need to parcellate
+            self.config._log_action("Parcellating real source estimates", 
+                                   {'n_sources': source_estimates.shape[0]})
+            
+            # For real implementation, we need to load the Desikan-Killiany labels
+            # and average source estimates within each region
+            try:
+                subjects_dir = mne.datasets.fetch_fsaverage(verbose=False)
+                
+                # Load Desikan-Killiany labels
+                labels = mne.read_labels_from_annot('fsaverage', 'aparc', 
+                                                  subjects_dir=subjects_dir, verbose=False)
+                
+                # Filter to get only the cortical regions (exclude unknown, corpuscallosum, etc.)
+                cortical_labels = [label for label in labels 
+                                 if label.name in DESIKAN_KILLIANY_REGIONS]
+                
+                # Sort labels to match our region order
+                label_dict = {label.name: label for label in cortical_labels}
+                sorted_labels = [label_dict[name] for name in DESIKAN_KILLIANY_REGIONS 
+                               if name in label_dict]
+                
+                if len(sorted_labels) < 60:  # Should have most of the 68 regions
+                    raise ValueError(f"Only found {len(sorted_labels)} regions, expected ~68")
+                
+                # Create source space for parcellation
+                subjects_dir_path = Path(subjects_dir)
+                src_path = subjects_dir_path / 'bem' / 'fsaverage-ico-5-src.fif'
+                src = mne.read_source_spaces(str(src_path), verbose=False)
+                
+                # Convert source estimates to SourceEstimate objects for parcellation
+                n_sources, n_times, n_epochs = source_estimates.shape
+                
+                # Initialize atlas timecourses
+                atlas_data = np.zeros((len(DESIKAN_KILLIANY_REGIONS), n_times, n_epochs))
+                
+                # Process in batches to manage memory
+                batch_size = 50  # Process 50 epochs at a time
+                for batch_start in range(0, n_epochs, batch_size):
+                    batch_end = min(batch_start + batch_size, n_epochs)
+                    batch_epochs = range(batch_start, batch_end)
+                    
+                    for i, epoch_idx in enumerate(batch_epochs):
+                        # Create SourceEstimate for this epoch
+                        stc = mne.SourceEstimate(
+                            data=source_estimates[:, :, epoch_idx],
+                            vertices=[src[0]['vertno'], src[1]['vertno']],
+                            tmin=0.0,
+                            tstep=1.0/250.0  # Assuming 250 Hz
+                        )
+                        
+                        # Extract timecourse for each region
+                        for region_idx, region_name in enumerate(DESIKAN_KILLIANY_REGIONS):
+                            if region_name in label_dict:
+                                label = label_dict[region_name]
+                                # Extract and average the timecourse for this region
+                                region_tc = stc.extract_label_time_course(label, src, mode='mean', verbose=False)
+                                atlas_data[region_idx, :, epoch_idx] = region_tc.flatten()
+                    
+                    if batch_end % 100 == 0 or batch_end == n_epochs:
+                        print(f"   📊 Parcellated {batch_end}/{n_epochs} epochs")
+                
+                self.config._log_action("Real atlas parcellation completed", 
+                                      {'n_regions': len(sorted_labels), 'n_epochs': n_epochs})
+                
+            except Exception as e:
+                self.config._log_action("Atlas parcellation failed, using averaging", {'error': str(e)})
+                warnings.warn(f"Advanced parcellation failed: {e}. Using simple averaging.")
+                
+                # Simple fallback: average every ~300 sources to get 68 regions
+                n_sources = source_estimates.shape[0]
+                sources_per_region = n_sources // len(DESIKAN_KILLIANY_REGIONS)
+                
+                atlas_data = np.zeros((len(DESIKAN_KILLIANY_REGIONS), source_estimates.shape[1], source_estimates.shape[2]))
+                for i in range(len(DESIKAN_KILLIANY_REGIONS)):
+                    start_idx = i * sources_per_region
+                    end_idx = min(start_idx + sources_per_region, n_sources)
+                    if start_idx < n_sources:
+                        atlas_data[i] = np.mean(source_estimates[start_idx:end_idx], axis=0)
         
         atlas_timecourses = {
-            'data': source_estimates,  # Shape: (n_regions, n_times, n_epochs)
+            'data': atlas_data,  # Shape: (n_regions, n_times, n_epochs)
             'region_names': DESIKAN_KILLIANY_REGIONS,
             'units': 'A⋅m',
             'atlas_version': 'desikan_killiany_68'
