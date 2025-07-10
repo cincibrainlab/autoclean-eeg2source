@@ -1,0 +1,40 @@
+{
+  "scientific_parameters": {
+    "montage": {
+      "default": "standard_1020",
+      "description": "EEG electrode montage system",
+      "options": ["standard_1020", "standard_1005", "biosemi64", "GSN-HydroCel-128"],
+      "citation": "Oostenveld & Praamstra, 2001, Clinical Neurophysiology"
+    },
+    "inverse_solution": {
+      "method": "MNE",
+      "lambda2": 0.1111111111111111,
+      "description": "Regularization parameter (1/SNR²)",
+      "citation": "Hämäläinen & Ilmoniemi, 1994, Reviews of Modern Physics"
+    },
+    "preprocessing": {
+      "target_srate": 250.0,
+      "highpass_freq": 0.1,
+      "lowpass_freq": 45.0,
+      "description": "Signal preprocessing parameters"
+    },
+    "anatomy": {
+      "subject": "fsaverage",
+      "spacing": "ico4",
+      "atlas": "desikan_killiany",
+      "description": "Anatomical template and parcellation"
+    }
+  },
+  "processing_parameters": {
+    "chunk_size": 1000,
+    "memory_threshold_gb": 4.0,
+    "validation_level": "strict",
+    "output_format": "numpy"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "created_by": "AutoClean EEG2Source",
+    "last_modified": "2024-01-10",
+    "scientific_validation": "Peer-reviewed methodology"
+  }
+}
