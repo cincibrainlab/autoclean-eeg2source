@@ -29,6 +29,30 @@ except ImportError:
     EnhancedCLI = None
     create_enhanced_cli = None
 
+# Import main function from the CLI module
+def main():
+    """Entry point for the CLI."""
+    import sys
+    import os
+    
+    # Add src directory to path so that autoclean_eeg2source can be imported
+    src_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    if src_dir not in sys.path:
+        sys.path.insert(0, src_dir)
+    
+    # Import the CLI module properly
+    try:
+        # Import the actual CLI module which contains the main function
+        import autoclean_eeg2source.cli as cli_module
+        # Access the main function directly from the module
+        main_func = getattr(cli_module, 'main')
+        return main_func()
+    except ImportError as e:
+        print(f"Error importing CLI module: {e}")
+        print("AutoClean EEG2Source CLI")
+        print("Enhanced CLI not available. Please check installation.")
+        return 1
+
 __all__ = [
     'RetroColors',
     'ASCIIArtGenerator',
@@ -37,5 +61,6 @@ __all__ = [
     'CommandWizard',
     'VisualProgressTracker',
     'EnhancedCLI',
-    'create_enhanced_cli'
+    'create_enhanced_cli',
+    'main'
 ]

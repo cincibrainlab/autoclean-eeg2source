@@ -24,7 +24,7 @@ from . import __version__
 
 # Import enhanced CLI components
 try:
-    from .cli.enhanced_cli import create_enhanced_cli
+    from .cli_enhancements.enhanced_cli import create_enhanced_cli
     ENHANCED_CLI_AVAILABLE = True
 except ImportError:
     ENHANCED_CLI_AVAILABLE = False
