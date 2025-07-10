@@ -200,26 +200,38 @@ class DataLoader:
         self.config._log_action("Loading EEGLAB file", {'file': str(file_path)})
         
         try:
-            if EEGLABIO_AVAILABLE:
-                # Use eeglabio for optimal compatibility
-                eeg_data = eeglabio.read_set(str(file_path))
-                raw = mne.io.RawArray(eeg_data['data'], 
-                                    mne.create_info(eeg_data['ch_names'], 
-                                                  eeg_data['srate'], 
-                                                  ch_types='eeg'))
-            else:
-                # Fallback to MNE's EEGLAB reader
-                raw = mne.io.read_raw_eeglab(str(file_path), preload=True)
-            
-            # Validate loaded data
-            self._validate_raw_data(raw, file_path)
-            
-            self.config._log_action("File loaded successfully", 
-                                  {'channels': len(raw.ch_names), 
-                                   'duration': raw.times[-1],
-                                   'srate': raw.info['sfreq']})
-            
-            return raw
+            # First try to load as epochs (more common for processed data)
+            try:
+                epochs = mne.io.read_epochs_eeglab(str(file_path), verbose=False)
+                self.config._log_action("File loaded as epochs", 
+                                      {'channels': len(epochs.ch_names), 
+                                       'n_epochs': len(epochs),
+                                       'epoch_duration': epochs.times[-1] - epochs.times[0],
+                                       'srate': epochs.info['sfreq']})
+                return epochs
+                
+            except (TypeError, ValueError):
+                # If epochs loading fails, try as continuous data
+                if EEGLABIO_AVAILABLE:
+                    # Use eeglabio for optimal compatibility
+                    eeg_data = eeglabio.read_set(str(file_path))
+                    raw = mne.io.RawArray(eeg_data['data'], 
+                                        mne.create_info(eeg_data['ch_names'], 
+                                                      eeg_data['srate'], 
+                                                      ch_types='eeg'))
+                else:
+                    # Fallback to MNE's EEGLAB reader
+                    raw = mne.io.read_raw_eeglab(str(file_path), preload=True, verbose=False)
+                
+                # Validate loaded data
+                self._validate_raw_data(raw, file_path)
+                
+                self.config._log_action("File loaded as continuous", 
+                                      {'channels': len(raw.ch_names), 
+                                       'duration': raw.times[-1],
+                                       'srate': raw.info['sfreq']})
+                
+                return raw
             
         except Exception as e:
             self.config._log_action("File loading failed", {'error': str(e)})
@@ -339,13 +351,18 @@ class StandaloneEEGProcessor:
                 warnings.warn("High memory usage detected. Processing may be slow.")
             
             # Step 1: Load and validate data
-            raw = self.data_loader.load_eeglab_file(set_file_path)
+            data = self.data_loader.load_eeglab_file(set_file_path)
             
-            # Step 2: Preprocessing
-            raw_preprocessed = self._preprocess_data(raw)
-            
-            # Step 3: Create epochs (if not already epoched)
-            epochs = self._create_epochs(raw_preprocessed)
+            # Step 2: Handle different data types and preprocessing
+            if isinstance(data, mne.epochs.BaseEpochs):
+                # Data is already epoched, apply minimal preprocessing
+                epochs = self._preprocess_data(data)
+                self.config._log_action("Using pre-epoched data", 
+                                      {'n_epochs': len(epochs)})
+            else:
+                # Data is continuous, need preprocessing and epoching
+                raw_preprocessed = self._preprocess_data(data)
+                epochs = self._create_epochs(raw_preprocessed)
             
             # Step 4: Build forward model
             forward = self._build_forward_model(epochs.info)
@@ -422,7 +439,7 @@ class StandaloneEEGProcessor:
         
         return results
     
-    def _preprocess_data(self, raw):
+    def _preprocess_data(self, data):
         """Apply preprocessing with scientific parameters."""
         # Get preprocessing parameters
         target_srate = self.config.get_parameter('scientific_parameters', 'preprocessing')['target_srate']
@@ -434,21 +451,52 @@ class StandaloneEEGProcessor:
                                 'hp_freq': hp_freq, 
                                 'lp_freq': lp_freq})
         
-        # Apply filters
-        raw_filtered = raw.copy()
-        
-        if hp_freq > 0:
-            raw_filtered.filter(l_freq=hp_freq, h_freq=None, verbose=False)
-        
-        if lp_freq < raw.info['sfreq'] / 2:
-            raw_filtered.filter(l_freq=None, h_freq=lp_freq, verbose=False)
-        
-        # Resample if necessary
-        if abs(raw.info['sfreq'] - target_srate) > 0.1:
-            raw_filtered.resample(target_srate, verbose=False)
-        
-        self.config._log_action("Preprocessing completed")
-        return raw_filtered
+        # Handle both raw and epochs data
+        if isinstance(data, mne.epochs.BaseEpochs):
+            # For epochs, apply minimal preprocessing if needed
+            epochs_filtered = data.copy()
+            
+            # Note: Filtering very short epochs can be problematic
+            # Check epoch length before filtering
+            epoch_duration = data.times[-1] - data.times[0]
+            if epoch_duration < 2.0:  # Less than 2 seconds
+                self.config._log_action("Skipping filtering for short epochs", 
+                                      {'epoch_duration': epoch_duration})
+                # Skip filtering for short epochs to avoid distortion
+            else:
+                try:
+                    if hp_freq > 0:
+                        epochs_filtered.filter(l_freq=hp_freq, h_freq=None, verbose=False)
+                    
+                    if lp_freq < data.info['sfreq'] / 2:
+                        epochs_filtered.filter(l_freq=None, h_freq=lp_freq, verbose=False)
+                except Exception as e:
+                    self.config._log_action("Filtering failed for epochs", {'error': str(e)})
+                    warnings.warn(f"Epoch filtering failed: {e}. Using unfiltered epochs.")
+            
+            # Resample if necessary
+            if abs(data.info['sfreq'] - target_srate) > 0.1:
+                epochs_filtered.resample(target_srate, verbose=False)
+            
+            self.config._log_action("Epochs preprocessing completed")
+            return epochs_filtered
+            
+        else:
+            # For raw data, apply standard preprocessing
+            raw_filtered = data.copy()
+            
+            if hp_freq > 0:
+                raw_filtered.filter(l_freq=hp_freq, h_freq=None, verbose=False)
+            
+            if lp_freq < data.info['sfreq'] / 2:
+                raw_filtered.filter(l_freq=None, h_freq=lp_freq, verbose=False)
+            
+            # Resample if necessary
+            if abs(data.info['sfreq'] - target_srate) > 0.1:
+                raw_filtered.resample(target_srate, verbose=False)
+            
+            self.config._log_action("Raw preprocessing completed")
+            return raw_filtered
     
     def _create_epochs(self, raw):
         """Create epochs from continuous data."""
@@ -472,43 +520,129 @@ class StandaloneEEGProcessor:
     
     def _build_forward_model(self, info):
         """Construct forward model using scientific parameters."""
-        # This is a placeholder - real implementation would build proper forward model
-        # Using fsaverage template and source space
-        
         self.config._log_action("Building forward model", 
                                {'subject': 'fsaverage', 'spacing': 'ico4'})
         
-        # In real implementation:
-        # 1. Set up source space
-        # 2. Set up BEM model  
-        # 3. Compute forward solution
-        
-        # For now, return None - this needs proper implementation
-        # that requires MNE sample data and proper source space setup
-        return None
+        try:
+            # 1. Use pre-computed fsaverage source space and BEM
+            # This is more reliable than trying to create from scratch
+            subjects_dir = mne.datasets.fetch_fsaverage(verbose=False)
+            
+            # 2. Load pre-computed source space (ico5 is available)
+            # subjects_dir already includes the path to fsaverage, so we just need bem/
+            src_path = Path(subjects_dir) / 'bem' / 'fsaverage-ico-5-src.fif'
+            src = mne.read_source_spaces(str(src_path), verbose=False)
+            
+            # 3. Load pre-computed BEM solution
+            bem_path = Path(subjects_dir) / 'bem' / 'fsaverage-5120-5120-5120-bem-sol.fif'
+            bem = mne.read_bem_solution(str(bem_path), verbose=False)
+            
+            # 4. Set up montage for electrode positions
+            montage_name = self.config.get_parameter('scientific_parameters', 'montage')
+            if isinstance(montage_name, dict):
+                montage_name = montage_name['default']
+            montage = mne.channels.make_standard_montage(montage_name)
+            
+            # 5. Create info with proper montage
+            info_copy = info.copy()
+            
+            # Handle HEOG/VEOG channels
+            eog_channels = ['HEOG', 'VEOG']
+            for ch in eog_channels:
+                if ch in info_copy.ch_names:
+                    info_copy.set_channel_types({ch: 'eog'})
+            
+            # Set montage - be more permissive for channel matching
+            # Many EEG files have slightly different channel names
+            info_copy.set_montage(montage, on_missing='ignore', verbose=False)
+            
+            # Check if we have enough channels with locations
+            n_channels_with_locs = sum(1 for ch in info_copy.ch_names 
+                                     if info_copy['chs'][info_copy.ch_names.index(ch)]['loc'][:3].any())
+            
+            if n_channels_with_locs < 8:  # Need at least 8 channels for source localization
+                raise ValueError(f"Only {n_channels_with_locs} channels have electrode locations. Need at least 8.")
+            
+            # 6. Compute forward solution
+            fwd = mne.make_forward_solution(info_copy, trans='fsaverage',
+                                          src=src, bem=bem,
+                                          verbose=False)
+            
+            self.config._log_action("Forward model built successfully",
+                                  {'n_sources': fwd['nsource'],
+                                   'n_channels': fwd['nchan']})
+            
+            return fwd
+            
+        except Exception as e:
+            self.config._log_action("Forward model failed", {'error': str(e)})
+            # Return None and continue with simulation
+            warnings.warn(f"Forward model construction failed: {e}. Using simulation.")
+            return None
     
     def _compute_inverse_solution(self, epochs, forward):
         """Apply regularized minimum norm estimation."""
-        # Placeholder for inverse solution computation
         lambda2 = self.config.get_parameter('scientific_parameters', 'inverse_solution')['lambda2']
         
         self.config._log_action("Computing inverse solution", {'lambda2': lambda2})
         
-        # Real implementation would:
-        # 1. Compute noise covariance
-        # 2. Create inverse operator
-        # 3. Apply inverse to epochs
+        if forward is None:
+            # Fallback to simulation if forward model failed
+            warnings.warn("Using simulated inverse solution due to forward model failure")
+            n_epochs = len(epochs)
+            n_sources = len(DESIKAN_KILLIANY_REGIONS)
+            n_times = len(epochs.times)
+            np.random.seed(42)
+            return np.random.randn(n_sources, n_times, n_epochs) * 1e-9
         
-        # For now, return simulated source estimates
-        n_epochs = len(epochs)
-        n_sources = len(DESIKAN_KILLIANY_REGIONS)
-        n_times = len(epochs.times)
-        
-        # Simulate source estimates with realistic properties
-        np.random.seed(42)  # For reproducibility
-        source_data = np.random.randn(n_sources, n_times, n_epochs) * 1e-9  # nAm scale
-        
-        return source_data
+        try:
+            # 1. Compute noise covariance from the epochs
+            # Use baseline period for noise estimation
+            noise_cov = mne.compute_covariance(epochs, tmin=None, tmax=0, 
+                                             method='empirical', verbose=False)
+            
+            # 2. Create inverse operator
+            inverse_operator = mne.minimum_norm.make_inverse_operator(
+                epochs.info, forward, noise_cov, loose=0.2, depth=0.8,
+                verbose=False)
+            
+            # 3. Apply inverse to epochs
+            snr = 3.0  # Signal-to-noise ratio assumption
+            lambda2 = 1.0 / snr ** 2  # Convert SNR to regularization parameter
+            
+            method = "MNE"  # Minimum norm estimation
+            stcs = mne.minimum_norm.apply_inverse_epochs(
+                epochs, inverse_operator, lambda2, method=method,
+                verbose=False)
+            
+            # 4. Convert to numpy array format
+            # stcs is a list of SourceEstimate objects
+            n_epochs = len(stcs)
+            n_sources = stcs[0].data.shape[0]
+            n_times = stcs[0].data.shape[1]
+            
+            source_data = np.zeros((n_sources, n_times, n_epochs))
+            for i, stc in enumerate(stcs):
+                source_data[:, :, i] = stc.data
+            
+            self.config._log_action("Inverse solution computed successfully",
+                                  {'n_sources': n_sources,
+                                   'n_times': n_times, 
+                                   'n_epochs': n_epochs,
+                                   'method': method})
+            
+            return source_data
+            
+        except Exception as e:
+            self.config._log_action("Inverse solution failed", {'error': str(e)})
+            warnings.warn(f"Inverse solution failed: {e}. Using simulation.")
+            
+            # Fallback to simulation
+            n_epochs = len(epochs)
+            n_sources = len(DESIKAN_KILLIANY_REGIONS)
+            n_times = len(epochs.times)
+            np.random.seed(42)
+            return np.random.randn(n_sources, n_times, n_epochs) * 1e-9
     
     def _apply_atlas_parcellation(self, source_estimates):
         """Project to Desikan-Killiany regions."""

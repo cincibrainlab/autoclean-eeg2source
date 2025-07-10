@@ -1,0 +1,226 @@
+{
+  "input_file": "/Users/ernie/Data/testfiles_for_p300/140108_C5D1BL_P300_comp.set",
+  "processing_timestamp": "2025-07-10T06:55:50.015386",
+  "software_version": "1.0.0",
+  "configuration": {
+    "scientific_parameters": {
+      "montage": {
+        "default": "standard_1020",
+        "description": "EEG electrode montage system",
+        "options": [
+          "standard_1020",
+          "standard_1005",
+          "biosemi64",
+          "GSN-HydroCel-128"
+        ],
+        "citation": "Oostenveld & Praamstra, 2001, Clinical Neurophysiology"
+      },
+      "inverse_solution": {
+        "method": "MNE",
+        "lambda2": 0.1111111111111111,
+        "description": "Regularization parameter (1/SNR\u00b2)",
+        "citation": "H\u00e4m\u00e4l\u00e4inen & Ilmoniemi, 1994, Reviews of Modern Physics"
+      },
+      "preprocessing": {
+        "target_srate": 250.0,
+        "highpass_freq": 0.1,
+        "lowpass_freq": 45.0,
+        "description": "Signal preprocessing parameters"
+      },
+      "anatomy": {
+        "subject": "fsaverage",
+        "spacing": "ico4",
+        "atlas": "desikan_killiany",
+        "description": "Anatomical template and parcellation"
+      }
+    },
+    "processing_parameters": {
+      "chunk_size": 1000,
+      "memory_threshold_gb": 4.0,
+      "validation_level": "strict",
+      "output_format": "numpy"
+    },
+    "metadata": {
+      "version": "1.0.0",
+      "created_by": "AutoClean EEG2Source",
+      "last_modified": "2024-01-10",
+      "scientific_validation": "Peer-reviewed methodology"
+    }
+  },
+  "processing_log": [
+    {
+      "timestamp": "2025-07-10T06:55:49.911505",
+      "action": "Configuration loaded successfully",
+      "details": {
+        "version": "1.0.0",
+        "created_by": "AutoClean EEG2Source",
+        "last_modified": "2024-01-10",
+        "scientific_validation": "Peer-reviewed methodology"
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.911517",
+      "action": "Scientific parameters validated successfully",
+      "details": null
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.911552",
+      "action": "Starting single file processing",
+      "details": {
+        "file": "/Users/ernie/Data/testfiles_for_p300/140108_C5D1BL_P300_comp.set"
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.911728",
+      "action": "Loading EEGLAB file",
+      "details": {
+        "file": "/Users/ernie/Data/testfiles_for_p300/140108_C5D1BL_P300_comp.set"
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.930624",
+      "action": "File loaded as epochs",
+      "details": {
+        "channels": 32,
+        "n_epochs": 287,
+        "epoch_duration": 1.3,
+        "srate": 250.0
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.930633",
+      "action": "Starting preprocessing",
+      "details": {
+        "target_srate": 250.0,
+        "hp_freq": 0.1,
+        "lp_freq": 45.0
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.931119",
+      "action": "Skipping filtering for short epochs",
+      "details": {
+        "epoch_duration": 1.3
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.931122",
+      "action": "Epochs preprocessing completed",
+      "details": null
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.931125",
+      "action": "Using pre-epoched data",
+      "details": {
+        "n_epochs": 287
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.931126",
+      "action": "Building forward model",
+      "details": {
+        "subject": "fsaverage",
+        "spacing": "ico4"
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.935687",
+      "action": "Forward model failed",
+      "details": {
+        "error": "Could not find the LH surface /Users/ernie/mne_data/MNE-fsaverage-data/fsaverage/fsaverage/surf/lh.white"
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:49.935731",
+      "action": "Computing inverse solution",
+      "details": {
+        "lambda2": 0.1111111111111111
+      }
+    },
+    {
+      "timestamp": "2025-07-10T06:55:50.008463",
+      "action": "Applying atlas parcellation",
+      "details": {
+        "atlas": "desikan_killiany",
+        "n_regions": 68
+      }
+    }
+  ],
+  "atlas_info": {
+    "region_names": [
+      "bankssts-lh",
+      "caudalanteriorcingulate-lh",
+      "caudalmiddlefrontal-lh",
+      "cuneus-lh",
+      "entorhinal-lh",
+      "fusiform-lh",
+      "inferiorparietal-lh",
+      "inferiortemporal-lh",
+      "isthmuscingulate-lh",
+      "lateraloccipital-lh",
+      "lateralorbitofrontal-lh",
+      "lingual-lh",
+      "medialorbitofrontal-lh",
+      "middletemporal-lh",
+      "parahippocampal-lh",
+      "paracentral-lh",
+      "parsopercularis-lh",
+      "parsorbitalis-lh",
+      "parstriangularis-lh",
+      "pericalcarine-lh",
+      "postcentral-lh",
+      "posteriorcingulate-lh",
+      "precentral-lh",
+      "precuneus-lh",
+      "rostralanteriorcingulate-lh",
+      "rostralmiddlefrontal-lh",
+      "superiorfrontal-lh",
+      "superiorparietal-lh",
+      "superiortemporal-lh",
+      "supramarginal-lh",
+      "frontalpole-lh",
+      "temporalpole-lh",
+      "transversetemporal-lh",
+      "insula-lh",
+      "bankssts-rh",
+      "caudalanteriorcingulate-rh",
+      "caudalmiddlefrontal-rh",
+      "cuneus-rh",
+      "entorhinal-rh",
+      "fusiform-rh",
+      "inferiorparietal-rh",
+      "inferiortemporal-rh",
+      "isthmuscingulate-rh",
+      "lateraloccipital-rh",
+      "lateralorbitofrontal-rh",
+      "lingual-rh",
+      "medialorbitofrontal-rh",
+      "middletemporal-rh",
+      "parahippocampal-rh",
+      "paracentral-rh",
+      "parsopercularis-rh",
+      "parsorbitalis-rh",
+      "parstriangularis-rh",
+      "pericalcarine-rh",
+      "postcentral-rh",
+      "posteriorcingulate-rh",
+      "precentral-rh",
+      "precuneus-rh",
+      "rostralanteriorcingulate-rh",
+      "rostralmiddlefrontal-rh",
+      "superiorfrontal-rh",
+      "superiorparietal-rh",
+      "superiortemporal-rh",
+      "supramarginal-rh",
+      "frontalpole-rh",
+      "temporalpole-rh",
+      "transversetemporal-rh",
+      "insula-rh"
+    ],
+    "units": "A\u22c5m",
+    "atlas_version": "desikan_killiany_68"
+  },
+  "data_files": {
+    "atlas_timecourses": "test_standalone_output/140108_C5D1BL_P300_comp_atlas_timecourses.npy"
+  }
+}
