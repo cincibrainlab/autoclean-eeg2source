@@ -22,6 +22,13 @@ from .utils.error_reporter import ErrorReporter, ErrorHandler
 from .utils.benchmarking import PerformanceBenchmark
 from . import __version__
 
+# Import enhanced CLI components
+try:
+    from .cli.enhanced_cli import create_enhanced_cli
+    ENHANCED_CLI_AVAILABLE = True
+except ImportError:
+    ENHANCED_CLI_AVAILABLE = False
+
 
 def find_set_files(input_path: str, recursive: bool = False) -> List[str]:
     """Find all .set files in the given path."""
@@ -689,7 +696,51 @@ def info_command(args):
 
 
 def main():
-    """Main CLI entry point."""
+    """Enhanced main CLI entry point with retro styling."""
+    
+    # Try to use enhanced CLI interface
+    if ENHANCED_CLI_AVAILABLE:
+        try:
+            enhanced_cli = create_enhanced_cli()
+            
+            # Create enhanced parser
+            parser = enhanced_cli.create_enhanced_parser()
+            
+            # Parse arguments
+            args = parser.parse_args()
+            
+            # Handle enhanced options first
+            if enhanced_cli.handle_enhanced_options(args):
+                return 0
+            
+            # Display header if appropriate
+            if enhanced_cli.should_display_header(args):
+                enhanced_cli.display_startup_banner()
+            
+            # Continue with existing processing logic for actual commands
+            if hasattr(args, 'command') and args.command:
+                # Set performance mode during processing
+                if enhanced_cli.colors:
+                    enhanced_cli.colors.enable_performance_mode()
+                
+                # Process the command using existing logic
+                return _process_command_legacy(args)
+            
+            # If no command specified, show help
+            if enhanced_cli.help_system:
+                print(enhanced_cli.help_system.show_quick_help())
+            return 0
+            
+        except Exception as e:
+            print(f"Enhanced CLI error: {e}")
+            print("Falling back to standard CLI...")
+    
+    # Fallback to original CLI
+    return _main_legacy()
+
+
+def _main_legacy():
+    """Original main function as fallback."""
     parser = argparse.ArgumentParser(
         description="AutoClean EEG2Source - EEG source localization with DK atlas regions"
     )
@@ -1034,6 +1085,30 @@ def main():
         return benchmark_command(args)
     else:
         parser.print_help()
+        return 1
+
+
+def _process_command_legacy(args):
+    """Process commands using original logic with enhanced styling."""
+    # Map enhanced args back to legacy format if needed
+    if args.command == "process":
+        return process_command(args)
+    elif args.command == "validate":
+        return validate_command(args)
+    elif args.command == "info":
+        return info_command(args)
+    elif args.command == "quality":
+        # TODO: Implement quality command in next version
+        print("Quality command not yet implemented")
+        return 1
+    elif args.command == "recover":
+        # TODO: Implement recover command in next version
+        print("Recovery command not yet implemented")
+        return 1
+    elif args.command == "benchmark":
+        return benchmark_command(args)
+    else:
+        print("Unknown command")
         return 1
 
 

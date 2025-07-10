@@ -1,26 +1,41 @@
-"""CLI enhancement modules for AutoClean EEG2Source."""
+"""
+CLI enhancement package for AutoClean EEG2Source.
+
+Provides 80s retro-styled visual enhancements including:
+- Color system with graceful fallbacks
+- ASCII art headers and progress bars
+- System information display
+- Enhanced help system with examples
+- Interactive command wizard
+- Visual progress tracking with animations
+"""
 
 from .visual import RetroColors
 
-# Import other modules only when they exist
 try:
     from .ascii_art import ASCIIArtGenerator
-except ImportError:
-    ASCIIArtGenerator = None
-
-try:
     from .system_info import SystemInfoDisplay
-except ImportError:
-    SystemInfoDisplay = None
-
-try:
     from .help_system import EnhancedHelpSystem
+    from .wizard import CommandWizard
+    from .progress import VisualProgressTracker
+    from .enhanced_cli import EnhancedCLI, create_enhanced_cli
 except ImportError:
+    # Graceful fallback if dependencies are missing
+    ASCIIArtGenerator = None
+    SystemInfoDisplay = None
     EnhancedHelpSystem = None
+    CommandWizard = None
+    VisualProgressTracker = None
+    EnhancedCLI = None
+    create_enhanced_cli = None
 
 __all__ = [
     'RetroColors',
-    'ASCIIArtGenerator', 
+    'ASCIIArtGenerator',
     'SystemInfoDisplay',
-    'EnhancedHelpSystem'
+    'EnhancedHelpSystem',
+    'CommandWizard',
+    'VisualProgressTracker',
+    'EnhancedCLI',
+    'create_enhanced_cli'
 ]
