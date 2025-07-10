@@ -478,6 +478,22 @@ class StandaloneEEGProcessor:
             if abs(data.info['sfreq'] - target_srate) > 0.1:
                 epochs_filtered.resample(target_srate, verbose=False)
             
+            # Handle EOG channels first - set their type before applying reference
+            eog_channels = ['HEOG', 'VEOG']
+            for ch in eog_channels:
+                if ch in epochs_filtered.ch_names:
+                    epochs_filtered.set_channel_types({ch: 'eog'})
+            
+            # Apply average EEG reference (required for source localization)
+            # Only apply to EEG channels, not EOG
+            eeg_channels = [ch for ch in epochs_filtered.ch_names 
+                          if epochs_filtered.get_channel_types()[epochs_filtered.ch_names.index(ch)] == 'eeg']
+            
+            if len(eeg_channels) > 1:
+                epochs_filtered.set_eeg_reference(ref_channels='average', projection=True, verbose=False)
+                self.config._log_action("Applied average EEG reference", 
+                                      {'n_eeg_channels': len(eeg_channels)})
+            
             self.config._log_action("Epochs preprocessing completed")
             return epochs_filtered
             
@@ -552,6 +568,28 @@ class StandaloneEEGProcessor:
                 if ch in info_copy.ch_names:
                     info_copy.set_channel_types({ch: 'eog'})
             
+            # Fix common channel name inconsistencies
+            # Many EEG files use different capitalization (FP1 vs Fp1, FZ vs Fz, etc.)
+            channel_mapping = {}
+            for ch_name in info_copy.ch_names:
+                if ch_name.upper() in ['HEOG', 'VEOG']:
+                    continue  # Skip EOG channels
+                
+                # Try to find matching channel in montage with different case
+                montage_ch_names_upper = [ch.upper() for ch in montage.ch_names]
+                if ch_name.upper() in montage_ch_names_upper:
+                    # Find the original case version
+                    idx = montage_ch_names_upper.index(ch_name.upper())
+                    correct_name = montage.ch_names[idx]
+                    if ch_name != correct_name:
+                        channel_mapping[ch_name] = correct_name
+            
+            # Apply channel name mapping
+            if channel_mapping:
+                info_copy.rename_channels(channel_mapping)
+                self.config._log_action("Renamed channels for montage compatibility", 
+                                      {'mappings': channel_mapping})
+            
             # Set montage - be more permissive for channel matching
             # Many EEG files have slightly different channel names
             info_copy.set_montage(montage, on_missing='ignore', verbose=False)
@@ -596,14 +634,26 @@ class StandaloneEEGProcessor:
             return np.random.randn(n_sources, n_times, n_epochs) * 1e-9
         
         try:
-            # 1. Compute noise covariance from the epochs
+            # 1. Apply baseline correction if not already done
+            if not hasattr(epochs, 'baseline') or epochs.baseline is None:
+                # Apply baseline correction using the first 100ms
+                epochs_copy = epochs.copy()
+                tmin_baseline = epochs.times[0]
+                tmax_baseline = min(epochs.times[0] + 0.1, epochs.times[-1])  # 100ms or less
+                epochs_copy.apply_baseline(baseline=(tmin_baseline, tmax_baseline), verbose=False)
+                self.config._log_action("Applied baseline correction", 
+                                      {'tmin': tmin_baseline, 'tmax': tmax_baseline})
+            else:
+                epochs_copy = epochs
+            
+            # 2. Compute noise covariance from the epochs
             # Use baseline period for noise estimation
-            noise_cov = mne.compute_covariance(epochs, tmin=None, tmax=0, 
+            noise_cov = mne.compute_covariance(epochs_copy, tmin=None, tmax=0, 
                                              method='empirical', verbose=False)
             
             # 2. Create inverse operator
             inverse_operator = mne.minimum_norm.make_inverse_operator(
-                epochs.info, forward, noise_cov, loose=0.2, depth=0.8,
+                epochs_copy.info, forward, noise_cov, loose=0.2, depth=0.8,
                 verbose=False)
             
             # 3. Apply inverse to epochs
@@ -612,7 +662,7 @@ class StandaloneEEGProcessor:
             
             method = "MNE"  # Minimum norm estimation
             stcs = mne.minimum_norm.apply_inverse_epochs(
-                epochs, inverse_operator, lambda2, method=method,
+                epochs_copy, inverse_operator, lambda2, method=method,
                 verbose=False)
             
             # 4. Convert to numpy array format
